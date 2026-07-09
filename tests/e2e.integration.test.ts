@@ -1,13 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { route } from "../packages/core/src/router";
 import { helloSkill } from "../packages/skills/helloSkill";
-import { prReviewSkill } from "../packages/skills/prReviewSkill";
 import { notificationSkill } from "../packages/skills/notificationSkill";
 import { messageSkill } from "../packages/skills/messageSkill";
 import type { SpiritEvent } from "../packages/core/src/events";
 
 // Full skill registry — same order as apps/desktop/src/skills.ts
-const skills = [helloSkill, prReviewSkill, notificationSkill, messageSkill];
+const skills = [helloSkill, notificationSkill, messageSkill];
 
 describe("E2E: event → router → skill → result", () => {
   it("pet.clicked → helloSkill → 'Hi Abby!'", async () => {
@@ -17,7 +16,7 @@ describe("E2E: event → router → skill → result", () => {
     expect(result.mood).toBe("happy");
   });
 
-  it("notification with review → prReviewSkill → high priority message", async () => {
+  it("notification with review → notificationSkill → high priority message", async () => {
     const event: SpiritEvent = {
       type: "notification.received",
       payload: {
@@ -38,7 +37,6 @@ describe("E2E: event → router → skill → result", () => {
         body: "CI passed on main",
       },
     };
-    // prReviewSkill won't match (no "review" in title), falls through to notificationSkill
     const result = await route(event, skills);
     expect(result.message).toBe("📬 Build succeeded");
     expect(result.mood).toBe("alert");
@@ -56,7 +54,6 @@ describe("E2E: event → router → skill → result", () => {
   });
 
   it("no matching skill → fallback empty result", async () => {
-    // Use empty skills array to simulate no match
     const event: SpiritEvent = { type: "pet.clicked" };
     const result = await route(event, []);
     expect(result.message).toBe("");
