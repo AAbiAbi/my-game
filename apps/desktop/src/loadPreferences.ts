@@ -1,27 +1,23 @@
 import { mkdir, exists, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { homeDir, join } from "@tauri-apps/api/path";
 import { defaultPreferences, type Preferences } from "../../../packages/core/src/preferences";
 
-async function getPreferencesPath() {
-  const home = await homeDir();
-  const dir = await join(home, ".project-spirit");
-  const file = await join(dir, "preferences.json");
-  return { dir, file };
-}
+// In dev: Tauri runs from src-tauri/, so project root is ../
+// We use an env var injected by Vite to get the project root
+const PROJECT_ROOT = import.meta.env.DEV ? import.meta.env.VITE_PROJECT_ROOT : ".";
+const DIR = `${PROJECT_ROOT}/.project-spirit`;
+const FILE = `${DIR}/preferences.json`;
 
 export async function loadPreferences(): Promise<Preferences> {
-  const { dir, file } = await getPreferencesPath();
-
-  if (!(await exists(dir))) {
-    await mkdir(dir, { recursive: true });
+  if (!(await exists(DIR))) {
+    await mkdir(DIR, { recursive: true });
   }
 
-  if (!(await exists(file))) {
-    await writeTextFile(file, JSON.stringify(defaultPreferences, null, 2));
+  if (!(await exists(FILE))) {
+    await writeTextFile(FILE, JSON.stringify(defaultPreferences, null, 2));
     return defaultPreferences;
   }
 
-  const raw = await readTextFile(file);
+  const raw = await readTextFile(FILE);
   return {
     ...defaultPreferences,
     ...JSON.parse(raw),
