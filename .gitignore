@@ -1,4 +1,7 @@
 node_modules/
 dist/
 .azure/
+.claude/
+.envrc
+azuredeploy.json
 *.log
