@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { route } from "../../../packages/core/src/router";
+import { logger, setLogLevel } from "../../../packages/core/src/logger";
 import {
   defaultPreferences,
   type Preferences,
@@ -13,6 +14,8 @@ import ContextMenu from "./ContextMenu";
 import "./App.css";
 
 export default function App() {
+  // Set debug level in dev mode
+  if (import.meta.env.DEV) setLogLevel("debug");
   const [prefs, setPrefs] = useState<Preferences>(defaultPreferences);
   const [bubble, setBubble] = useState("");
   const [mood, setMood] = useState<PetMood>(prefs.defaultMood);
@@ -56,18 +59,21 @@ export default function App() {
   }
 
   function sleep() {
+    logger.info("Pet going to sleep");
     setMood("sleeping");
     setMenuOpen(false);
     showBubble("Going to sleep...");
   }
 
   function wakeUp() {
+    logger.info("Pet waking up");
     setMood("idle");
     setMenuOpen(false);
     showBubble("I'm awake!");
   }
 
   async function quit() {
+    logger.info("Quitting app");
     await getCurrentWindow().close();
   }
 
