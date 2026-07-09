@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { dispatch } from "../../../packages/core/src/dispatcher";
+import { route } from "../../../packages/core/src/router";
 import {
   defaultPreferences,
   type Preferences,
@@ -41,7 +41,7 @@ export default function App() {
       showBubble(`Zzz... ${prefs.petName} is sleeping.`);
       return;
     }
-    const result = await dispatch({ type: "pet.clicked" }, skills);
+    const result = await route({ type: "pet.clicked" }, skills);
 
     setMood(result.mood ?? "happy");
     showBubble(result.message);
