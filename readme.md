@@ -81,3 +81,21 @@ packages/
 
         helloSkill.ts
 ```
+
+```
+把网页变成小窗口
+固定尺寸，比如 220x220
+always on top
+透明背景
+可拖动
+加宠物状态
+idle
+happy
+alert
+sleeping
+把 bubble 接到 skill result
+点击猫猫 → pet.clicked
+skill 返回 "Hi Abby!"
+UI 显示气泡
+```
+下一步先做 click 🐱 → bubble。
