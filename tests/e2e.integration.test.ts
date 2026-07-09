@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { route } from "../packages/core/src/router";
+import { setLogLevel } from "../packages/core/src/logger";
 import { helloSkill } from "../packages/skills/helloSkill";
 import { notificationSkill } from "../packages/skills/notificationSkill";
 import { messageSkill } from "../packages/skills/messageSkill";
@@ -7,6 +8,10 @@ import type { SpiritEvent } from "../packages/core/src/events";
 
 // Full skill registry — same order as apps/desktop/src/skills.ts
 const skills = [helloSkill, notificationSkill, messageSkill];
+
+beforeAll(() => {
+  setLogLevel("debug");
+});
 
 describe("E2E: event → router → skill → result", () => {
   it("pet.clicked → helloSkill → 'Hi Abby!'", async () => {

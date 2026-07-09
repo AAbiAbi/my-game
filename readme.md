@@ -1,125 +1,108 @@
+# Abby AI Companion — Desktop Pet
+
 ```
-                                    Abby AI Companion
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                             Desktop Pet (Tauri)                            │
 │                                                                             │
 │  🐱 Character          Notification         Chat UI         Voice (future)   │
-│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
                     │                         ▲
-                    │                         │
                     ▼                         │
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                          Local Agent (Rust / Go)                            │
+│                          Local Agent (TypeScript)                           │
 │                                                                             │
-│  Skills Engine                                                               │
-│  ├── skills.md                                                               │
-│  ├── rules.md                                                                │
-│  ├── prompts/                                                                 │
-│  └── plugins/                                                                 │
+│  Event Router        Skills Engine         Local Memory                      │
+│  ├── pet.clicked     ├── helloSkill        ├── preferences.json              │
+│  ├── notification    ├── notificationSkill └── .project-spirit/              │
+│  └── message         └── messageSkill                                        │
 │                                                                             │
-│  Local Memory                                                                │
-│  ├── SQLite                                                                   │
-│  ├── Preferences.json                                                         │
-│  ├── Cache                                                                    │
-│  └── Embeddings (optional)                                                    │
-│                                                                             │
-│  Event Router                                                                 │
-│  ├── Teams Notification                                                       │
-│  ├── Outlook / Gmail                                                          │
-│  ├── Calendar                                                                 │
-│  ├── GitHub                                                                   │
-│  └── Local Files                                                              │
+│  Logger (debug/info/warn/error)                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
-                    │
-        Only send necessary context
-                    │
-────────────────────┼──────────────────────────────────────────────────────────
-                    ▼
-                   Azure
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Azure Functions                                   │
-│                                                                             │
-│  HTTP Trigger                                                               │
-│  Timer Trigger                                                              │
-│  Queue Trigger (future)                                                     │
-└─────────────────────────────────────────────────────────────────────────────┘
-          │                 │                     │
-          ▼                 ▼                     ▼
-┌────────────────┐  ┌─────────────────┐  ┌──────────────────────┐
-│ Azure OpenAI   │  │ Azure AI Search │  │ Blob Storage         │
-│                │  │                 │  │                      │
-│ Summarization  │  │ Knowledge Base  │  │ Optional Documents   │
-│ Classification │  │ RAG             │  │ Long-term Storage    │
-└────────────────┘  └─────────────────┘  └──────────────────────┘
 ```
 
-```
-project-spirit/
+## Quick Start
 
-apps/
-
-    desktop/
-
-        src/
-
-            main.tsx      <-- React入口
-
-            App.tsx       <-- UI
-
-packages/
-
-    core/
-
-        dispatcher.ts
-
-        events.ts
-
-        skill.ts
-
-    skills/
-
-        helloSkill.ts
+```bash
+npm install
+npm run tauri dev     # launch desktop pet
 ```
 
+## Scripts
+
+| Command                                 | Description                 |
+| --------------------------------------- | --------------------------- |
+| `npm run dev`                           | Vite dev server (port 3000) |
+| `npm run tauri dev`                     | Launch Tauri desktop app    |
+| `npm test`                              | Run all unit tests          |
+| `npm test -- <file>`                    | Run specific test file      |
+| `npm test -- <file> --reporter=verbose` | Run with full log output    |
+| `npm run test:watch`                    | Watch mode                  |
+| `npm run lint`                          | ESLint check                |
+| `npm run fmt`                           | Prettier format             |
+
+## Project Structure
+
 ```
-  固定尺寸，比如 220x220
-  always on top
-可拖动
-加宠物状态
-  idle
-  happy
-  alert
-  sleeping
-把 bubble 接到 skill result
-  点击猫猫 → pet.clicked
-  UI 显示气泡
+apps/desktop/src/
+  App.tsx              — main UI + state
+  ContextMenu.tsx      — right-click menu (Sleep/Wake/Quit)
+  hooks/useDrag.ts     — window drag logic
+  skills.ts            — skill registry
+  loadPreferences.ts   — read .project-spirit/preferences.json
+
+packages/core/src/
+  router.ts            — event → skill matching
+  events.ts            — typed event definitions
+  skill.ts             — Skill interface
+  preferences.ts       — Preferences type + defaults
+  logger.ts            — leveled logger (debug/info/warn/error)
+
+packages/skills/
+  helloSkill.ts        — pet.clicked → "Hi Abby!"
+  notificationSkill.ts — notification.received → priority detection
+  messageSkill.ts      — message.received → "💬 from: text"
+
+tests/
+  e2e.integration.test.ts — full event→router→skill integration test
 ```
 
-真正桌宠化第一步：让窗口像桌宠，而不是网页。
+## Event System
 
-目标：
+```
+SpiritEvent → route(event, skills) → first matching skill → SkillResult → bubble
+```
 
-拖动桌宠。
+| Event                            | Skill             | Result                  |
+| -------------------------------- | ----------------- | ----------------------- |
+| `pet.clicked`                    | helloSkill        | "Hi Abby!" 😊           |
+| `notification.received` (review) | notificationSkill | "High priority: ..." ⚠️ |
+| `notification.received` (other)  | notificationSkill | "📬 {title}" ⚠️         |
+| `message.received`               | messageSkill      | "💬 {from}: {text}" 😊  |
 
-状态系统 + 右键菜单，这样桌宠开始像一个真正 app。
+## Preferences
 
-先做最小版本：
+Config file: `.project-spirit/preferences.json` (project root, gitignored)
 
-左键点击：显示 Hi Abby!
-按住拖动：移动桌宠
-右键点击：切换状态 / 退出 app
+```json
+{
+  "petName": "Abby",
+  "defaultMood": "idle",
+  "bubbleDurationMs": 2000
+}
+```
 
-下一步具体做：
+Edit and restart to apply changes.
 
-v0.2
+## Dev Tooling
 
-- idle / happy / sleeping 三种 mood
-- 右键菜单：Sleep / Wake up / Quit
-- 气泡提示当前状态
+- **Vite** + **React** + **Tauri** — desktop app stack
+- **Vitest** — unit + integration tests
+- **ESLint** + **Prettier** — code quality
+- **Husky** + **lint-staged** — pre-commit: lint + format + test
+- **GitHub Actions CI** — lint + format + test on every PR
+- **Branch protection** — main requires CI pass
 
-这样完成后，你的桌宠就有：
+## Releases
 
-可互动 + 可移动 + 可退出 + 有状态
-
-然后再接 Azure Function Hello World。
+- **v0.1.0** — Basic pet: click, drag, transparent window
+- **v0.2.0** — Context menu, sleep mode, preferences, event router, logger
