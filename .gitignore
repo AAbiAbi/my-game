@@ -3,6 +3,7 @@ dist/
 .azure/
 .claude/
 .envrc
+.project-spirit/
 azuredeploy.json
 *.log
 src-tauri/target/

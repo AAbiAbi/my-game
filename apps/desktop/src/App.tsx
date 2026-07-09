@@ -1,21 +1,29 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { dispatch } from "../../../packages/core/src/dispatcher";
-import { defaultPreferences, type PetMood } from "../../../packages/core/src/preferences";
+import {
+  defaultPreferences,
+  type Preferences,
+  type PetMood,
+} from "../../../packages/core/src/preferences";
 import { skills } from "./skills";
 import { useDrag } from "./hooks/useDrag";
+import { loadPreferences } from "./loadPreferences";
 import ContextMenu from "./ContextMenu";
 import "./App.css";
 
-const prefs = defaultPreferences;
-
 export default function App() {
+  const [prefs, setPrefs] = useState<Preferences>(defaultPreferences);
   const [bubble, setBubble] = useState("");
   const [mood, setMood] = useState<PetMood>(prefs.defaultMood);
   const [menuOpen, setMenuOpen] = useState(false);
   const bubbleTimer = useRef<number>(undefined);
   const rightClicked = useRef(false);
   const { isDragging, handleMouseDown, handleMouseUp } = useDrag();
+
+  useEffect(() => {
+    loadPreferences().then(setPrefs);
+  }, []);
 
   function showBubble(message: string) {
     clearTimeout(bubbleTimer.current);
@@ -30,7 +38,7 @@ export default function App() {
       return;
     }
     if (mood === "sleeping") {
-      showBubble("Zzz... Abby is sleeping.");
+      showBubble(`Zzz... ${prefs.petName} is sleeping.`);
       return;
     }
     const result = await dispatch({ type: "pet.clicked" }, skills);
