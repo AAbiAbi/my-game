@@ -10,6 +10,7 @@ import {
 import { skills } from "./skills";
 import { useDrag } from "./hooks/useDrag";
 import { loadPreferences } from "./loadPreferences";
+import { pollInbox } from "./inbox";
 import ContextMenu from "./ContextMenu";
 import "./App.css";
 
@@ -27,6 +28,20 @@ export default function App() {
   useEffect(() => {
     loadPreferences().then(setPrefs);
   }, []);
+
+  // Poll inbox every 3 seconds for external events
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      if (mood === "sleeping") return;
+      const events = await pollInbox();
+      for (const event of events) {
+        const result = await route(event, skills);
+        setMood(result.mood ?? "idle");
+        showBubble(result.message);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  });
 
   function showBubble(message: string) {
     clearTimeout(bubbleTimer.current);
