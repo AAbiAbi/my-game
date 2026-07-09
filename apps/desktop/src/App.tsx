@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { dispatch } from "../../../packages/core/src/dispatcher";
 import { helloSkill } from "../../../packages/skills/helloSkill";
+import "./App.css";
 
 const skills = [helloSkill];
 
@@ -17,7 +18,7 @@ export default function App() {
     setTimeout(() => {
       setBubble("");
       setMood("idle");
-    }, 2500);
+    }, 2000);
   }
 
   return (
