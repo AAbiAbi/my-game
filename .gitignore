@@ -3,4 +3,5 @@ dist/
 .azure/
 .claude/
 .envrc
+azuredeploy.json
 *.log
