@@ -8,5 +8,5 @@ export default tseslint.config(
   prettier,
   {
     ignores: ["node_modules/", "dist/"],
-  }
+  },
 );
