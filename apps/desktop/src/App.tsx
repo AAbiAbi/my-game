@@ -14,6 +14,7 @@ export default function App() {
   const [mood, setMood] = useState<PetMood>(prefs.defaultMood);
   const [menuOpen, setMenuOpen] = useState(false);
   const bubbleTimer = useRef<number>(undefined);
+  const rightClicked = useRef(false);
   const { isDragging, handleMouseDown, handleMouseUp } = useDrag();
 
   function showBubble(message: string) {
@@ -24,6 +25,10 @@ export default function App() {
 
   async function handlePetClick() {
     if (isDragging.current) return;
+    if (rightClicked.current) {
+      rightClicked.current = false;
+      return;
+    }
     if (mood === "sleeping") {
       showBubble("Zzz... Abby is sleeping.");
       return;
@@ -38,6 +43,7 @@ export default function App() {
 
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault();
+    rightClicked.current = true;
     setMenuOpen((v) => !v);
   }
 

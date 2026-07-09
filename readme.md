@@ -99,8 +99,26 @@ skill 返回 "Hi Abby!"
 UI 显示气泡
 ```
 
-真正桌宠化第一步：让窗口像桌宠，而不是网页。
+- [x] 拖动桌宠。
 
-目标：
+# 目标
 
-拖动桌宠。
+是让桌宠不是 hardcode，而是从本地读：
+
+~/.project-spirit/preferences.json
+
+先放最简单内容：
+
+{
+"petName": "Abby",
+"defaultMood": "idle",
+"bubbleDurationMs": 2000
+}
+
+然后 UI 里：
+
+气泡从 Hi Abby! 变成 Hi <petName>!
+bubble 消失时间用 bubbleDurationMs
+启动时 mood 用 defaultMood
+
+这个完成后，你的项目就开始有“个人设置”了。下一步再做 skills.md。

@@ -8,6 +8,7 @@ export function useDrag() {
   const startPos = useRef({ x: 0, y: 0 });
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return; // only left-click triggers drag
     dragRef.current = false;
     startPos.current = { x: e.screenX, y: e.screenY };
     getCurrentWindow().startDragging();
