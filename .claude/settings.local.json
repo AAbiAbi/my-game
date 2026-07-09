@@ -8,7 +8,8 @@
       "Bash(npx tsc *)",
       "Bash(gh auth *)",
       "Bash(git init *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git rm *)"
     ]
   }
 }
