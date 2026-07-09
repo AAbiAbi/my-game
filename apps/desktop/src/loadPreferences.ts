@@ -1,23 +1,29 @@
-import { exists, readTextFile, writeTextFile, BaseDirectory } from "@tauri-apps/plugin-fs";
+import { mkdir, exists, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { homeDir, join } from "@tauri-apps/api/path";
 import { defaultPreferences, type Preferences } from "../../../packages/core/src/preferences";
 
-const FILE = "preferences.json";
-const DIR = BaseDirectory.AppConfig;
+async function getPreferencesPath() {
+  const home = await homeDir();
+  const dir = await join(home, ".project-spirit");
+  const file = await join(dir, "preferences.json");
+  return { dir, file };
+}
 
 export async function loadPreferences(): Promise<Preferences> {
-  try {
-    const fileExists = await exists(FILE, { baseDir: DIR });
-    if (fileExists) {
-      const raw = await readTextFile(FILE, { baseDir: DIR });
-      const parsed = JSON.parse(raw);
-      return { ...defaultPreferences, ...parsed };
-    }
-  } catch {
-    // Fall through to create default file
+  const { dir, file } = await getPreferencesPath();
+
+  if (!(await exists(dir))) {
+    await mkdir(dir, { recursive: true });
   }
 
-  await writeTextFile(FILE, JSON.stringify(defaultPreferences, null, 2), {
-    baseDir: DIR,
-  });
-  return defaultPreferences;
+  if (!(await exists(file))) {
+    await writeTextFile(file, JSON.stringify(defaultPreferences, null, 2));
+    return defaultPreferences;
+  }
+
+  const raw = await readTextFile(file);
+  return {
+    ...defaultPreferences,
+    ...JSON.parse(raw),
+  };
 }
