@@ -16,7 +16,6 @@ body,
   background: transparent;
   -webkit-user-select: none;
   user-select: none;
-  background: transparent;
 }
 
 .bubble {
@@ -27,6 +26,7 @@ body,
   color: #222;
   font-size: 14px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  -webkit-app-region: no-drag;
 }
 
 .pet {
@@ -35,6 +35,7 @@ body,
   font-size: 64px;
   cursor: pointer;
   transition: transform 0.15s ease;
+  -webkit-app-region: drag;
 }
 
 .pet:hover {
