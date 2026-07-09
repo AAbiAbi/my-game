@@ -99,4 +99,8 @@ skill 返回 "Hi Abby!"
 UI 显示气泡
 ```
 
-下一步先做 click 🐱 → bubble。
+真正桌宠化第一步：让窗口像桌宠，而不是网页。
+
+目标：
+
+小窗口 + 透明背景 + always on top
