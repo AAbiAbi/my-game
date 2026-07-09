@@ -1,27 +1,34 @@
 import { useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { dispatch } from "../../../packages/core/src/dispatcher";
-import { helloSkill } from "../../../packages/skills/helloSkill";
+import { defaultPreferences, type PetMood } from "../../../packages/core/src/preferences";
+import { skills } from "./skills";
+import { useDrag } from "./hooks/useDrag";
 import ContextMenu from "./ContextMenu";
 import "./App.css";
 
-const skills = [helloSkill];
-type Mood = "idle" | "happy" | "sleeping" | "alert";
+const prefs = defaultPreferences;
 
 export default function App() {
   const [bubble, setBubble] = useState("");
-  const [mood, setMood] = useState<Mood>("idle");
+  const [mood, setMood] = useState<PetMood>(prefs.defaultMood);
   const [menuOpen, setMenuOpen] = useState(false);
-  const dragRef = useRef(false);
-  const startPos = useRef({ x: 0, y: 0 });
+  const bubbleTimer = useRef<number>(undefined);
+  const rightClicked = useRef(false);
+  const { isDragging, handleMouseDown, handleMouseUp } = useDrag();
 
   function showBubble(message: string) {
+    clearTimeout(bubbleTimer.current);
     setBubble(message);
-    setTimeout(() => setBubble(""), 2000);
+    bubbleTimer.current = setTimeout(() => setBubble(""), prefs.bubbleDurationMs);
   }
 
   async function handlePetClick() {
-    if (dragRef.current) return;
+    if (isDragging.current) return;
+    if (rightClicked.current) {
+      rightClicked.current = false;
+      return;
+    }
     if (mood === "sleeping") {
       showBubble("Zzz... Abby is sleeping.");
       return;
@@ -31,25 +38,12 @@ export default function App() {
     setMood(result.mood ?? "happy");
     showBubble(result.message);
 
-    setTimeout(() => setMood("idle"), 2000);
-  }
-
-  function handleMouseDown(e: React.MouseEvent) {
-    dragRef.current = false;
-    startPos.current = { x: e.screenX, y: e.screenY };
-    getCurrentWindow().startDragging();
-  }
-
-  function handleMouseUp(e: React.MouseEvent) {
-    const dx = Math.abs(e.screenX - startPos.current.x);
-    const dy = Math.abs(e.screenY - startPos.current.y);
-    if (dx > 3 || dy > 3) {
-      dragRef.current = true;
-    }
+    setTimeout(() => setMood("idle"), prefs.bubbleDurationMs);
   }
 
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault();
+    rightClicked.current = true;
     setMenuOpen((v) => !v);
   }
 
