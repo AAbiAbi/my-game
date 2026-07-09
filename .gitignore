@@ -5,3 +5,4 @@ dist/
 .envrc
 azuredeploy.json
 *.log
+src-tauri/target/
