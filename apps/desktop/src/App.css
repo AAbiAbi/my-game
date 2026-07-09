@@ -56,3 +56,7 @@ body,
     transform: translateY(0);
   }
 }
+
+.pet-sleeping {
+  opacity: 0.8;
+}
