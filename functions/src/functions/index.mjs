@@ -3,15 +3,26 @@ import { WebPubSubServiceClient } from "@azure/web-pubsub";
 import crypto from "crypto";
 import { notificationToSpiritEvent, githubToSpiritEvent } from "../github-events.mjs";
 
+// CORS headers for browser/WebView requests
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
 // --- negotiate ---
 app.http("negotiate", {
-  methods: ["GET"],
+  methods: ["GET", "OPTIONS"],
   authLevel: "anonymous",
   route: "negotiate",
-  handler: async () => {
+  handler: async (request) => {
+    if (request.method === "OPTIONS") {
+      return { status: 204, headers: corsHeaders };
+    }
+
     const cs = process.env.PUBSUB_CONNECTION_STRING;
     if (!cs) {
-      return { status: 500, body: "PUBSUB_CONNECTION_STRING not configured" };
+      return { status: 500, body: "PUBSUB_CONNECTION_STRING not configured", headers: corsHeaders };
     }
 
     const client = new WebPubSubServiceClient(cs, "spirit");
@@ -20,7 +31,7 @@ app.http("negotiate", {
       expirationTimeInMinutes: 60,
     });
 
-    return { jsonBody: { url } };
+    return { jsonBody: { url }, headers: corsHeaders };
   },
 });
 
