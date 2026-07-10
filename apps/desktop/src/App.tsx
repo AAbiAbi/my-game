@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { route } from "../../../packages/core/src/router";
 import { logger, setLogLevel } from "../../../packages/core/src/logger";
 import {
@@ -157,9 +157,17 @@ export default function App() {
     addBubble("I'm awake!");
   }
 
-  function openHistory() {
+  async function openHistory() {
     setMenuOpen(false);
     setHistoryOpen(true);
+    const win = getCurrentWindow();
+    await win.setSize(new LogicalSize(280, 500));
+  }
+
+  async function closeHistory() {
+    setHistoryOpen(false);
+    const win = getCurrentWindow();
+    await win.setSize(new LogicalSize(220, 220));
   }
 
   async function quit() {
@@ -176,7 +184,7 @@ export default function App() {
           </div>
         ))}
       </div>
-      {historyOpen && <HistoryPanel onClose={() => setHistoryOpen(false)} />}
+      {historyOpen && <HistoryPanel onClose={closeHistory} />}
       {menuOpen && (
         <ContextMenu onSleep={sleep} onWake={wakeUp} onHistory={openHistory} onQuit={quit} />
       )}
