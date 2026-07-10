@@ -19,12 +19,14 @@ interface BubbleMessage {
   text: string;
 }
 
+const MAX_VISIBLE = 3;
 let nextId = 0;
 
 export default function App() {
   if (import.meta.env.DEV) setLogLevel("debug");
   const [prefs, setPrefs] = useState<Preferences>(defaultPreferences);
-  const [bubbles, setBubbles] = useState<BubbleMessage[]>([]);
+  const [queue, setQueue] = useState<BubbleMessage[]>([]);
+  const [visible, setVisible] = useState<BubbleMessage[]>([]);
   const [mood, setMood] = useState<PetMood>(prefs.defaultMood);
   const [menuOpen, setMenuOpen] = useState(false);
   const rightClicked = useRef(false);
@@ -49,22 +51,24 @@ export default function App() {
     return () => disconnectWebSocket();
   }, []);
 
-  const addBubble = useCallback(
-    (message: string) => {
-      const id = nextId++;
-      setBubbles((prev) => {
-        const updated = [...prev, { id, text: message }];
-        // Keep max 3 visible, remove oldest
-        return updated.slice(-3);
-      });
+  // Move items from queue to visible when there's space
+  useEffect(() => {
+    if (visible.length < MAX_VISIBLE && queue.length > 0) {
+      const [next, ...rest] = queue;
+      setQueue(rest);
+      setVisible((prev) => [...prev, next]);
 
-      // Auto-remove after duration
+      // Start dismiss timer only when bubble becomes visible
       setTimeout(() => {
-        setBubbles((prev) => prev.filter((b) => b.id !== id));
+        setVisible((prev) => prev.filter((b) => b.id !== next.id));
       }, prefs.bubbleDurationMs);
-    },
-    [prefs.bubbleDurationMs],
-  );
+    }
+  }, [visible, queue, prefs.bubbleDurationMs]);
+
+  const addBubble = useCallback((message: string) => {
+    const id = nextId++;
+    setQueue((prev) => [...prev, { id, text: message }]);
+  }, []);
 
   async function handlePetClick() {
     if (isDragging.current) return;
@@ -112,7 +116,7 @@ export default function App() {
   return (
     <div className="pet-root" data-tauri-drag-region>
       <div className="bubble-stack">
-        {bubbles.map((b) => (
+        {visible.map((b) => (
           <div key={b.id} className="bubble bubble-enter">
             {b.text}
           </div>
