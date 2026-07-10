@@ -22,6 +22,24 @@ interface BubbleMessage {
 const MAX_VISIBLE = 3;
 let nextId = 0;
 
+const NEGOTIATE_URL =
+  import.meta.env.VITE_NEGOTIATE_URL || "https://spirit-functions.azurewebsites.net/api/negotiate";
+
+async function getNegotiateUrl(): Promise<string> {
+  try {
+    const res = await fetch(NEGOTIATE_URL);
+    const { url } = await res.json();
+    logger.info("WebSocket: got token from negotiate endpoint");
+    return url;
+  } catch {
+    const fallback = import.meta.env.VITE_PUBSUB_URL || "";
+    if (fallback) {
+      logger.warn("WebSocket: negotiate failed, using VITE_PUBSUB_URL fallback");
+    }
+    return fallback;
+  }
+}
+
 export default function App() {
   if (import.meta.env.DEV) setLogLevel("debug");
   const [prefs, setPrefs] = useState<Preferences>(defaultPreferences);
@@ -37,17 +55,24 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const wsUrl = import.meta.env.VITE_PUBSUB_URL;
-    if (!wsUrl) {
-      logger.warn("No VITE_PUBSUB_URL set, skipping WebSocket connection");
-      return;
+    async function connect() {
+      // Try negotiate endpoint first, fall back to env var
+      const wsUrl = await getNegotiateUrl();
+
+      if (!wsUrl) {
+        logger.warn("No WebSocket URL available, skipping connection");
+        return;
+      }
+
+      connectWebSocket(wsUrl, async (event) => {
+        if (mood === "sleeping") return;
+        const result = await route(event, skills);
+        setMood(result.mood ?? "idle");
+        addBubble(result.message);
+      });
     }
-    connectWebSocket(wsUrl, async (event) => {
-      if (mood === "sleeping") return;
-      const result = await route(event, skills);
-      setMood(result.mood ?? "idle");
-      addBubble(result.message);
-    });
+
+    connect();
     return () => disconnectWebSocket();
   }, []);
 
