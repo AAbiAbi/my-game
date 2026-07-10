@@ -109,13 +109,28 @@ app.timer("github-poll", {
     context.log(`${notifications.length} new notification(s)`);
 
     const pubsub = new WebPubSubServiceClient(cs, "spirit");
+    let highCount = 0;
+    let lowCount = 0;
 
     for (const n of notifications) {
-      const event = notificationToSpiritEvent(n);
-      if (event) {
-        await pubsub.sendToAll(event, { contentType: "application/json" });
-        context.log(`  → ${event.payload.title}`);
+      const result = notificationToSpiritEvent(n);
+      if (!result) continue;
+
+      if (result.priority === "high") {
+        await pubsub.sendToAll(result.event, { contentType: "application/json" });
+        context.log(`  ⚡ [HIGH] ${result.event.payload.title}`);
+        highCount++;
+      } else {
+        context.log(
+          `  📋 [LOW] ${result.event.payload.title} (${result.reason} in ${result.repo})`,
+        );
+        lowCount++;
+        // TODO: store in memory.json for AI recap
       }
+    }
+
+    if (highCount > 0 || lowCount > 0) {
+      context.log(`Summary: ${highCount} high priority pushed, ${lowCount} low priority stored`);
     }
 
     // Mark as read
