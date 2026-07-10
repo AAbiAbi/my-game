@@ -11,7 +11,9 @@ import { skills } from "./skills";
 import { useDrag } from "./hooks/useDrag";
 import { loadPreferences } from "./loadPreferences";
 import { connectWebSocket, disconnectWebSocket } from "./websocket";
+import { initDb, saveEvent } from "./db";
 import ContextMenu from "./ContextMenu";
+import HistoryPanel from "./HistoryPanel";
 import "./App.css";
 
 interface BubbleMessage {
@@ -47,16 +49,25 @@ export default function App() {
   const [visible, setVisible] = useState<BubbleMessage[]>([]);
   const [mood, setMood] = useState<PetMood>(prefs.defaultMood);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const rightClicked = useRef(false);
   const { isDragging, handleMouseDown, handleMouseUp } = useDrag();
 
+  const dbReady = useRef(false);
+
+  // Init DB + load preferences on mount
   useEffect(() => {
+    initDb()
+      .then(() => {
+        dbReady.current = true;
+      })
+      .catch((err) => logger.error("DB init failed:", err));
     loadPreferences().then(setPrefs);
   }, []);
 
+  // Connect to WebSocket
   useEffect(() => {
     async function connect() {
-      // Try negotiate endpoint first, fall back to env var
       const wsUrl = await getNegotiateUrl();
 
       if (!wsUrl) {
@@ -67,6 +78,19 @@ export default function App() {
       connectWebSocket(wsUrl, async (event) => {
         if (mood === "sleeping") return;
         const result = await route(event, skills);
+        const title = event.type === "notification.received" ? (event.payload?.title ?? "") : "";
+        const body = event.type === "notification.received" ? (event.payload?.body ?? "") : "";
+
+        // Save to DB
+        await saveEvent(
+          event.type,
+          title || result.message,
+          body,
+          result.mood ?? null,
+          "high",
+          "websocket",
+        );
+
         setMood(result.mood ?? "idle");
         addBubble(result.message);
       });
@@ -76,14 +100,13 @@ export default function App() {
     return () => disconnectWebSocket();
   }, []);
 
-  // Move items from queue to visible when there's space
+  // Drain queue → visible
   useEffect(() => {
     if (visible.length < MAX_VISIBLE && queue.length > 0) {
       const [next, ...rest] = queue;
       setQueue(rest);
       setVisible((prev) => [...prev, next]);
 
-      // Start dismiss timer only when bubble becomes visible
       setTimeout(() => {
         setVisible((prev) => prev.filter((b) => b.id !== next.id));
       }, prefs.bubbleDurationMs);
@@ -117,6 +140,7 @@ export default function App() {
     e.preventDefault();
     rightClicked.current = true;
     setMenuOpen((v) => !v);
+    setHistoryOpen(false);
   }
 
   function sleep() {
@@ -133,6 +157,11 @@ export default function App() {
     addBubble("I'm awake!");
   }
 
+  function openHistory() {
+    setMenuOpen(false);
+    setHistoryOpen(true);
+  }
+
   async function quit() {
     logger.info("Quitting app");
     await getCurrentWindow().close();
@@ -147,7 +176,10 @@ export default function App() {
           </div>
         ))}
       </div>
-      {menuOpen && <ContextMenu onSleep={sleep} onWake={wakeUp} onQuit={quit} />}
+      {historyOpen && <HistoryPanel onClose={() => setHistoryOpen(false)} />}
+      {menuOpen && (
+        <ContextMenu onSleep={sleep} onWake={wakeUp} onHistory={openHistory} onQuit={quit} />
+      )}
       <button
         className={`pet pet-${mood}`}
         onClick={handlePetClick}

@@ -1,0 +1,46 @@
+import { useEffect, useState } from "react";
+import { getHistory, type EventRecord } from "./db";
+import "./HistoryPanel.css";
+
+interface HistoryPanelProps {
+  onClose: () => void;
+}
+
+export default function HistoryPanel({ onClose }: HistoryPanelProps) {
+  const [events, setEvents] = useState<EventRecord[]>([]);
+
+  useEffect(() => {
+    getHistory(30).then(setEvents);
+  }, []);
+
+  function formatTime(ts: number): string {
+    const d = new Date(ts);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  return (
+    <div className="history-wrapper">
+      <button className="history-close-external" onClick={onClose}>
+        ✕
+      </button>
+      <div className="history-panel">
+        <div className="history-header">
+          <span>History</span>
+        </div>
+        <div className="history-list">
+          {events.length === 0 && <div className="history-empty">No events yet</div>}
+          {events.map((e) => (
+            <div key={e.id} className={`history-item priority-${e.priority}`}>
+              <div className="history-time">{formatTime(e.ts)}</div>
+              <div className="history-content">
+                <div className="history-title">{e.title}</div>
+                {e.body && <div className="history-body">{e.body}</div>}
+              </div>
+              {e.priority === "high" && <span className="history-badge">⚡</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
