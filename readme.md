@@ -4,16 +4,15 @@
 
 ```mermaid
 flowchart TD
-    subgraph Cloud ["☁️ Azure (westus2)"]
-        Teams[Microsoft Teams] -->|Graph webhook| AF[Azure Function<br/>HTTP Trigger]
-        AF -->|sendToAll| PubSub[Azure Web PubSub<br/>spirit-pubsub]
+    subgraph Cloud ["☁️ Azure — VS Enterprise Subscription (westus2)"]
+        GH[GitHub Repo] -->|webhook POST| AF[Azure Function<br/>spirit-functions]
+        AF -->|sendToAll| PubSub[Azure Web PubSub<br/>spirit-pubsub-personal]
+        AF2["/api/negotiate"] -->|generate token| PubSub
     end
 
     subgraph Local ["💻 Local Mac"]
-        PubSub -->|WebSocket| Pet[🐱 Desktop Pet<br/>Tauri + React]
-        Inbox[.project-spirit/inbox.json] -->|file poll 3s| Pet
-        Script[scripts/send-event.mjs] -->|write| Inbox
-        Script2[scripts/pubsub-send.mjs] -->|REST API| PubSub
+        PubSub -->|WebSocket push| Pet[🐱 Desktop Pet<br/>Tauri + React]
+        Pet -->|GET /api/negotiate| AF2
     end
 
     Pet --> Router[Event Router]
@@ -21,63 +20,54 @@ flowchart TD
     Skills --> Bubble[💬 Speech Bubble]
 ```
 
-## Azure Resources Created
+## Azure Resources
 
-| Resource        | Type             | SKU     | Resource Group      | Location |
-| --------------- | ---------------- | ------- | ------------------- | -------- |
-| `spirit-pubsub` | Azure Web PubSub | Free_F1 | `rg-project-spirit` | westus2  |
+| Resource                  | Type             | SKU          | Cost                    |
+| ------------------------- | ---------------- | ------------ | ----------------------- |
+| `spirit-pubsub-personal`  | Web PubSub       | Free_F1      | $0 (20k msg/day)        |
+| `spirit-functions`        | Function App     | Consumption  | $0 (1M exec/month free) |
+| `spiritstorage01`         | Storage Account  | Standard_LRS | ~$0.01/month            |
+| `WestUS2LinuxDynamicPlan` | App Service Plan | Consumption  | $0                      |
 
-**Subscription:** Azure Container Service - Test (`8ecadfc9-...`)
+**Subscription:** Visual Studio Enterprise ($150/month credit)
+**Resource Group:** `rg-project-spirit` (westus2)
+**Tenant:** Personal (`ningchenliang98gmail.onmicrosoft.com`)
 
-Connection string stored in `.envrc` (gitignored):
+## Function Endpoints
 
-```bash
-export PUBSUB_CONNECTION_STRING="Endpoint=https://spirit-pubsub.webpubsub.azure.com;AccessKey=...;Version=1.0;"
-```
+| Endpoint                                                        | Method | Purpose                                          |
+| --------------------------------------------------------------- | ------ | ------------------------------------------------ |
+| `https://spirit-functions.azurewebsites.net/api/negotiate`      | GET    | Returns WebSocket URL with token for desktop pet |
+| `https://spirit-functions.azurewebsites.net/api/github-webhook` | POST   | Receives GitHub webhooks → pushes to PubSub      |
 
 ## Quick Start
 
 ```bash
 npm install
-npm run tauri dev     # launch desktop pet (file inbox only)
+npm run tauri dev
 ```
 
-With WebSocket (real-time):
+Desktop pet auto-connects to Web PubSub via `/api/negotiate`.
+
+### Test the full pipeline
 
 ```bash
-# Generate client URL and launch with it
-VITE_PUBSUB_URL=$(node scripts/negotiate.mjs) npm run tauri dev
-```
-
-## Event Delivery
-
-| Method                 | Latency | Use case                                            |
-| ---------------------- | ------- | --------------------------------------------------- |
-| WebSocket (Web PubSub) | Instant | Production: Azure Function → PubSub → pet           |
-| File inbox (poll)      | ≤3s     | Dev fallback: write to `.project-spirit/inbox.json` |
-
-### Send test events
-
-```bash
-# Via file inbox (no Azure needed)
-node scripts/send-event.mjs notification.received '{"title":"PR review request","body":"Lily asked you to review a PR"}'
-
-# Via Web PubSub (requires PUBSUB_CONNECTION_STRING)
+# Send a test notification via PubSub
 node scripts/pubsub-send.mjs notification.received '{"title":"PR review request","body":"Lily asked you to review a PR"}'
 ```
 
-## Scripts
+## Event Flow
 
-| Command                                 | Description                 |
-| --------------------------------------- | --------------------------- |
-| `npm run dev`                           | Vite dev server (port 3000) |
-| `npm run tauri dev`                     | Launch Tauri desktop app    |
-| `npm test`                              | Run all unit tests          |
-| `npm test -- <file>`                    | Run specific test file      |
-| `npm test -- <file> --reporter=verbose` | Run with full log output    |
-| `npm run test:watch`                    | Watch mode                  |
-| `npm run lint`                          | ESLint check                |
-| `npm run fmt`                           | Prettier format             |
+```text
+GitHub webhook → Azure Function → Web PubSub → WebSocket → Desktop Pet → route() → skill → 💬
+```
+
+| Event                            | Skill             | Result                  |
+| -------------------------------- | ----------------- | ----------------------- |
+| `pet.clicked`                    | helloSkill        | "Hi Abby!" 😊           |
+| `notification.received` (review) | notificationSkill | "High priority: ..." ⚠️ |
+| `notification.received` (other)  | notificationSkill | "📬 {title}" ⚠️         |
+| `message.received`               | messageSkill      | "💬 {from}: {text}" 😊  |
 
 ## Project Structure
 
@@ -88,7 +78,6 @@ apps/desktop/src/
   hooks/useDrag.ts     — window drag logic
   skills.ts            — skill registry
   loadPreferences.ts   — read .project-spirit/preferences.json
-  inbox.ts             — poll local inbox file
   websocket.ts         — WebSocket connection to Web PubSub
 
 packages/core/src/
@@ -103,27 +92,20 @@ packages/skills/
   notificationSkill.ts — notification.received → priority detection
   messageSkill.ts      — message.received → "💬 from: text"
 
+functions/
+  src/functions/index.mjs — Azure Functions (negotiate + github-webhook)
+  host.json
+  package.json
+
 scripts/
-  send-event.mjs       — write event to local inbox file
-  negotiate.mjs        — generate WebSocket client URL
-  pubsub-send.mjs      — send event via Web PubSub REST API
+  negotiate.mjs        — generate WebSocket client URL (dev tool)
+  pubsub-send.mjs      — send event via Web PubSub (testing)
+  github-poll.mjs      — poll GitHub notifications (dev fallback)
+  send-event.mjs       — write event to local inbox (testing)
 
 tests/
   e2e.integration.test.ts — full event→router→skill integration test
 ```
-
-## Event System
-
-```text
-SpiritEvent → route(event, skills) → first matching skill → SkillResult → bubble
-```
-
-| Event                            | Skill             | Result                  |
-| -------------------------------- | ----------------- | ----------------------- |
-| `pet.clicked`                    | helloSkill        | "Hi Abby!" 😊           |
-| `notification.received` (review) | notificationSkill | "High priority: ..." ⚠️ |
-| `notification.received` (other)  | notificationSkill | "📬 {title}" ⚠️         |
-| `message.received`               | messageSkill      | "💬 {from}: {text}" 😊  |
 
 ## Preferences
 
@@ -146,6 +128,13 @@ Config file: `.project-spirit/preferences.json` (project root, gitignored)
 - **GitHub Actions CI** — lint + format + test on every PR
 - **Branch protection** — main requires CI pass
 
+## Compliance Notes
+
+- All Azure resources on personal VS Enterprise subscription (no company data)
+- GitHub webhook: only receives metadata from repos you configure
+- No Microsoft Graph / Teams integration (requires admin consent)
+- Company Teams data stays local if ever integrated
+
 ## Releases
 
 - **v0.1.0** — Basic pet: click, drag, transparent window
@@ -153,32 +142,9 @@ Config file: `.project-spirit/preferences.json` (project root, gitignored)
 
 ## Roadmap
 
-- [ ] Step 3: Azure Function HTTP trigger → send to Web PubSub
-- [ ] Step 4: Microsoft Graph webhook → Teams notifications → Function
-
-最适合你的分层方式
-
-个人项目的通用基础设施可以放在这 $150 subscription：
-
-Personal Azure
-├── Azure Function
-├── Web PubSub
-├── AI processing for personal data
-└── Gmail / GitHub / personal calendar integrations
-
-公司 Teams 部分先保持本地：
-
-Company Teams source
-↓
-Local filtering / classification
-↓
-Desktop pet
-
-除非你确认有公司认可的 Graph app registration、consent 和数据处理方式，否则不要把 Teams 原文传到个人 Azure。
-
-你当前的 Azure 登录已经是正确的个人项目环境。可以用下面两条再次确认：
-
-az account show -o table
-az account get-access-token --query tenant -o tsv
-
-接下来部署 Azure Function 和 Web PubSub都可以继续使用这个 subscription；Teams Graph 集成则应当作为单独的权限与合规问题处理。
+- [x] Azure Function `/api/negotiate` — auto token for desktop pet
+- [x] Azure Function `/api/github-webhook` — receive GitHub events
+- [ ] Configure GitHub webhook on repos
+- [ ] Desktop pet auto-negotiate on startup (replace .env.local)
+- [ ] Gmail / personal calendar integration
+- [ ] v0.3 release
