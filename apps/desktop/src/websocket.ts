@@ -1,50 +1,82 @@
-import { WebPubSubClient } from "@azure/web-pubsub-client";
 import { logger } from "../../../packages/core/src/logger";
 import type { SpiritEvent } from "../../../packages/core/src/events";
 
 type OnEventCallback = (event: SpiritEvent) => void;
 
-let client: WebPubSubClient | null = null;
+let ws: WebSocket | null = null;
+let reconnectTimer: number | undefined;
+let intentionalClose = false;
+let currentUrl = "";
+let currentCallback: OnEventCallback | null = null;
 
 export function connectWebSocket(url: string, onEvent: OnEventCallback) {
-  if (client) {
-    client.stop();
+  intentionalClose = false;
+  currentUrl = url;
+  currentCallback = onEvent;
+
+  if (ws) {
+    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+      intentionalClose = true;
+      ws.close();
+      intentionalClose = false;
+    }
+    ws = null;
   }
 
-  logger.info("WebSocket: connecting via PubSub client SDK...");
+  logger.info("WebSocket: connecting...");
+  ws = new WebSocket(url, "json.webpubsub.azure.v1");
 
-  client = new WebPubSubClient(url);
-
-  client.on("connected", () => {
+  ws.onopen = () => {
     logger.info("WebSocket: connected");
-  });
+    clearTimeout(reconnectTimer);
+  };
 
-  client.on("server-message", (e) => {
+  ws.onmessage = (msg) => {
     try {
-      const data = typeof e.message.data === "string" ? JSON.parse(e.message.data) : e.message.data;
-      logger.debug("WebSocket: received", data);
-      onEvent(data as SpiritEvent);
+      const raw = JSON.parse(msg.data);
+      logger.debug("WebSocket: raw message", raw);
+
+      // Web PubSub json subprotocol wraps messages
+      let event;
+      if (raw.type === "message" && raw.dataType === "json") {
+        event = raw.data;
+      } else if (raw.type === "message" && raw.dataType === "text") {
+        event = JSON.parse(raw.data);
+      } else if (raw.type === "system") {
+        logger.info("WebSocket: system event", raw.event);
+        return;
+      } else {
+        // Direct message (no subprotocol wrapper)
+        event = raw;
+      }
+
+      logger.debug("WebSocket: parsed event", event);
+      onEvent(event);
     } catch (err) {
       logger.error("WebSocket: failed to parse message", err);
     }
-  });
+  };
 
-  client.on("disconnected", () => {
-    logger.warn("WebSocket: disconnected");
-  });
+  ws.onclose = () => {
+    if (intentionalClose) return;
+    logger.warn("WebSocket: disconnected, reconnecting in 5s...");
+    reconnectTimer = setTimeout(() => {
+      if (currentUrl && currentCallback) {
+        connectWebSocket(currentUrl, currentCallback);
+      }
+    }, 5000);
+  };
 
-  client.on("stopped", () => {
-    logger.info("WebSocket: stopped");
-  });
-
-  client.start().catch((err) => {
-    logger.error("WebSocket: failed to start", err);
-  });
+  ws.onerror = (err) => {
+    logger.error("WebSocket: error", err);
+  };
 }
 
 export function disconnectWebSocket() {
-  if (client) {
-    client.stop();
-    client = null;
+  intentionalClose = true;
+  clearTimeout(reconnectTimer);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.close();
   }
+  ws = null;
 }
