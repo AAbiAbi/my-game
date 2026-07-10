@@ -1,10 +1,7 @@
 import { app } from "@azure/functions";
 import { WebPubSubServiceClient } from "@azure/web-pubsub";
 import crypto from "crypto";
-import {
-  notificationToSpiritEvent,
-  githubToSpiritEvent,
-} from "../github-events.mjs";
+import { notificationToSpiritEvent, githubToSpiritEvent } from "../github-events.mjs";
 
 // --- negotiate ---
 app.http("negotiate", {
@@ -45,9 +42,7 @@ app.http("github-webhook", {
     // Verify GitHub signature
     if (secret) {
       const signature = request.headers.get("x-hub-signature-256");
-      const expected =
-        "sha256=" +
-        crypto.createHmac("sha256", secret).update(body).digest("hex");
+      const expected = "sha256=" + crypto.createHmac("sha256", secret).update(body).digest("hex");
       if (signature !== expected) {
         return { status: 401, body: "Invalid signature" };
       }

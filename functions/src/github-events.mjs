@@ -7,9 +7,7 @@ export function notificationToSpiritEvent(n) {
   const repo = repository?.full_name;
   const type = subject?.type;
 
-  const highPriority = ["review_requested", "assign", "mention"].includes(
-    reason,
-  );
+  const highPriority = ["review_requested", "assign", "mention"].includes(reason);
 
   return {
     type: "notification.received",

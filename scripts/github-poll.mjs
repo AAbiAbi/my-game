@@ -21,7 +21,7 @@ const pubsub = new WebPubSubServiceClient(cs, "spirit");
 function fetchNotifications() {
   try {
     const raw = execSync(
-      'gh api notifications --jq \'[.[] | {reason, title: .subject.title, type: .subject.type, repo: .repository.full_name, url: .subject.url}]\'',
+      "gh api notifications --jq '[.[] | {reason, title: .subject.title, type: .subject.type, repo: .repository.full_name, url: .subject.url}]'",
       { encoding: "utf-8", timeout: 10000 },
     );
     return JSON.parse(raw || "[]");
