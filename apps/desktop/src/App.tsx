@@ -10,7 +10,7 @@ import {
 import { skills } from "./skills";
 import { useDrag } from "./hooks/useDrag";
 import { loadPreferences } from "./loadPreferences";
-import { pollInbox } from "./inbox";
+import { connectWebSocket, disconnectWebSocket } from "./websocket";
 import ContextMenu from "./ContextMenu";
 import "./App.css";
 
@@ -29,19 +29,22 @@ export default function App() {
     loadPreferences().then(setPrefs);
   }, []);
 
-  // Poll inbox every 3 seconds for external events
+  // Connect to Azure Web PubSub for real-time events
   useEffect(() => {
-    const interval = setInterval(async () => {
+    const wsUrl = import.meta.env.VITE_PUBSUB_URL;
+    console.log("PUBSUB URL length:", wsUrl?.length, "starts with:", wsUrl?.substring(0, 30));
+    if (!wsUrl) {
+      logger.warn("No VITE_PUBSUB_URL set, skipping WebSocket connection");
+      return;
+    }
+    connectWebSocket(wsUrl, async (event) => {
       if (mood === "sleeping") return;
-      const events = await pollInbox();
-      for (const event of events) {
-        const result = await route(event, skills);
-        setMood(result.mood ?? "idle");
-        showBubble(result.message);
-      }
-    }, 3000);
-    return () => clearInterval(interval);
-  });
+      const result = await route(event, skills);
+      setMood(result.mood ?? "idle");
+      showBubble(result.message);
+    });
+    return () => disconnectWebSocket();
+  }, []);
 
   function showBubble(message: string) {
     clearTimeout(bubbleTimer.current);
