@@ -52,7 +52,11 @@ export default function App() {
   const addBubble = useCallback(
     (message: string) => {
       const id = nextId++;
-      setBubbles((prev) => [...prev, { id, text: message }]);
+      setBubbles((prev) => {
+        const updated = [...prev, { id, text: message }];
+        // Keep max 3 visible, remove oldest
+        return updated.slice(-3);
+      });
 
       // Auto-remove after duration
       setTimeout(() => {
