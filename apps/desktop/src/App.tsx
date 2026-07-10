@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { route } from "../../../packages/core/src/router";
 import { logger, setLogLevel } from "../../../packages/core/src/logger";
@@ -14,14 +14,21 @@ import { connectWebSocket, disconnectWebSocket } from "./websocket";
 import ContextMenu from "./ContextMenu";
 import "./App.css";
 
+interface BubbleMessage {
+  id: number;
+  text: string;
+}
+
+const MAX_VISIBLE = 3;
+let nextId = 0;
+
 export default function App() {
-  // Set debug level in dev mode
   if (import.meta.env.DEV) setLogLevel("debug");
   const [prefs, setPrefs] = useState<Preferences>(defaultPreferences);
-  const [bubble, setBubble] = useState("");
+  const [queue, setQueue] = useState<BubbleMessage[]>([]);
+  const [visible, setVisible] = useState<BubbleMessage[]>([]);
   const [mood, setMood] = useState<PetMood>(prefs.defaultMood);
   const [menuOpen, setMenuOpen] = useState(false);
-  const bubbleTimer = useRef<number>(undefined);
   const rightClicked = useRef(false);
   const { isDragging, handleMouseDown, handleMouseUp } = useDrag();
 
@@ -29,10 +36,8 @@ export default function App() {
     loadPreferences().then(setPrefs);
   }, []);
 
-  // Connect to Azure Web PubSub for real-time events
   useEffect(() => {
     const wsUrl = import.meta.env.VITE_PUBSUB_URL;
-    console.log("PUBSUB URL length:", wsUrl?.length, "starts with:", wsUrl?.substring(0, 30));
     if (!wsUrl) {
       logger.warn("No VITE_PUBSUB_URL set, skipping WebSocket connection");
       return;
@@ -41,16 +46,29 @@ export default function App() {
       if (mood === "sleeping") return;
       const result = await route(event, skills);
       setMood(result.mood ?? "idle");
-      showBubble(result.message);
+      addBubble(result.message);
     });
     return () => disconnectWebSocket();
   }, []);
 
-  function showBubble(message: string) {
-    clearTimeout(bubbleTimer.current);
-    setBubble(message);
-    bubbleTimer.current = setTimeout(() => setBubble(""), prefs.bubbleDurationMs);
-  }
+  // Move items from queue to visible when there's space
+  useEffect(() => {
+    if (visible.length < MAX_VISIBLE && queue.length > 0) {
+      const [next, ...rest] = queue;
+      setQueue(rest);
+      setVisible((prev) => [...prev, next]);
+
+      // Start dismiss timer only when bubble becomes visible
+      setTimeout(() => {
+        setVisible((prev) => prev.filter((b) => b.id !== next.id));
+      }, prefs.bubbleDurationMs);
+    }
+  }, [visible, queue, prefs.bubbleDurationMs]);
+
+  const addBubble = useCallback((message: string) => {
+    const id = nextId++;
+    setQueue((prev) => [...prev, { id, text: message }]);
+  }, []);
 
   async function handlePetClick() {
     if (isDragging.current) return;
@@ -59,13 +77,13 @@ export default function App() {
       return;
     }
     if (mood === "sleeping") {
-      showBubble(`Zzz... ${prefs.petName} is sleeping.`);
+      addBubble(`Zzz... ${prefs.petName} is sleeping.`);
       return;
     }
     const result = await route({ type: "pet.clicked" }, skills);
 
     setMood(result.mood ?? "happy");
-    showBubble(result.message);
+    addBubble(result.message);
 
     setTimeout(() => setMood("idle"), prefs.bubbleDurationMs);
   }
@@ -80,14 +98,14 @@ export default function App() {
     logger.info("Pet going to sleep");
     setMood("sleeping");
     setMenuOpen(false);
-    showBubble("Going to sleep...");
+    addBubble("Going to sleep...");
   }
 
   function wakeUp() {
     logger.info("Pet waking up");
     setMood("idle");
     setMenuOpen(false);
-    showBubble("I'm awake!");
+    addBubble("I'm awake!");
   }
 
   async function quit() {
@@ -97,7 +115,13 @@ export default function App() {
 
   return (
     <div className="pet-root" data-tauri-drag-region>
-      {bubble && <div className="bubble">{bubble}</div>}
+      <div className="bubble-stack">
+        {visible.map((b) => (
+          <div key={b.id} className="bubble bubble-enter">
+            {b.text}
+          </div>
+        ))}
+      </div>
       {menuOpen && <ContextMenu onSleep={sleep} onWake={wakeUp} onQuit={quit} />}
       <button
         className={`pet pet-${mood}`}
