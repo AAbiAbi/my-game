@@ -10,7 +10,10 @@ export default function HistoryPanel({ onClose }: HistoryPanelProps) {
   const [events, setEvents] = useState<EventRecord[]>([]);
 
   useEffect(() => {
-    getHistory(30).then(setEvents);
+    getHistory(30).then((data) => {
+      console.log("History loaded:", data.length, "events", data);
+      setEvents(data);
+    });
   }, []);
 
   function formatTime(ts: number): string {

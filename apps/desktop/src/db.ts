@@ -17,18 +17,21 @@ const CREATE_TABLE = `
   )
 `;
 
-export async function initDb(): Promise<Database | null> {
+async function getDb(): Promise<Database | null> {
   if (db) return db;
-
   try {
     db = await Database.load("sqlite:spirit.db");
     await db.execute(CREATE_TABLE);
     logger.info("DB: initialized spirit.db");
     return db;
   } catch (err) {
-    logger.warn("DB: SQLite not available (running outside Tauri?)", err);
+    logger.warn("DB: SQLite not available", err);
     return null;
   }
+}
+
+export async function initDb(): Promise<Database | null> {
+  return getDb();
 }
 
 export interface EventRecord {
@@ -51,10 +54,11 @@ export async function saveEvent(
   priority: "high" | "low",
   source: string,
 ): Promise<void> {
-  if (!db) return;
+  const d = await getDb();
+  if (!d) return;
   try {
     const status = priority === "high" ? "shown" : "digest_pending";
-    await db.execute(
+    await d.execute(
       "INSERT INTO events (ts, type, title, body, mood, priority, status, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
       [Date.now(), type, title, body, mood, priority, status, source],
     );
@@ -65,11 +69,10 @@ export async function saveEvent(
 }
 
 export async function getHistory(limit = 50): Promise<EventRecord[]> {
-  if (!db) return [];
+  const d = await getDb();
+  if (!d) return [];
   try {
-    return await db.select<EventRecord[]>("SELECT * FROM events ORDER BY ts DESC LIMIT $1", [
-      limit,
-    ]);
+    return await d.select<EventRecord[]>("SELECT * FROM events ORDER BY ts DESC LIMIT $1", [limit]);
   } catch (err) {
     logger.error("DB: failed to get history", err);
     return [];
@@ -77,13 +80,15 @@ export async function getHistory(limit = 50): Promise<EventRecord[]> {
 }
 
 export async function markAsRead(id: number): Promise<void> {
-  if (!db) return;
-  await db.execute("UPDATE events SET status = 'read' WHERE id = $1", [id]);
+  const d = await getDb();
+  if (!d) return;
+  await d.execute("UPDATE events SET status = 'read' WHERE id = $1", [id]);
 }
 
 export async function getDigestPending(): Promise<EventRecord[]> {
-  if (!db) return [];
-  return await db.select<EventRecord[]>(
+  const d = await getDb();
+  if (!d) return [];
+  return await d.select<EventRecord[]>(
     "SELECT * FROM events WHERE status = 'digest_pending' ORDER BY ts ASC",
   );
 }
