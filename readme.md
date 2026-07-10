@@ -144,7 +144,12 @@ Config file: `.project-spirit/preferences.json` (project root, gitignored)
 
 - [x] Azure Function `/api/negotiate` — auto token for desktop pet
 - [x] Azure Function `/api/github-webhook` — receive GitHub events
-- [ ] Configure GitHub webhook on repos
-- [ ] Desktop pet auto-negotiate on startup (replace .env.local)
+- [x] Configure GitHub webhook on `AAbiAbi/my-game`
+- [x] Desktop pet auto-negotiate on startup (replace .env.local)
+- [x] Notification priority filter (high → push, low → AI recap)
+- [x] Bubble queue with float-up animation (max 3 visible)
+- [ ] Message history panel (right-click → History)
+- [ ] Local memory persistence (`.project-spirit/memory.json`)
+- [ ] AI recap for low-priority notifications
 - [ ] Gmail / personal calendar integration
 - [ ] v0.3 release
