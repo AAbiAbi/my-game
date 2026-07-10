@@ -1,48 +1,50 @@
+import { WebPubSubClient } from "@azure/web-pubsub-client";
 import { logger } from "../../../packages/core/src/logger";
 import type { SpiritEvent } from "../../../packages/core/src/events";
 
 type OnEventCallback = (event: SpiritEvent) => void;
 
-let ws: WebSocket | null = null;
-let reconnectTimer: number | undefined;
+let client: WebPubSubClient | null = null;
 
 export function connectWebSocket(url: string, onEvent: OnEventCallback) {
-  if (ws) {
-    ws.close();
+  if (client) {
+    client.stop();
   }
 
-  logger.info("WebSocket: connecting...");
-  ws = new WebSocket(url);
+  logger.info("WebSocket: connecting via PubSub client SDK...");
 
-  ws.onopen = () => {
+  client = new WebPubSubClient(url);
+
+  client.on("connected", () => {
     logger.info("WebSocket: connected");
-    clearTimeout(reconnectTimer);
-  };
+  });
 
-  ws.onmessage = (msg) => {
+  client.on("server-message", (e) => {
     try {
-      const data = JSON.parse(msg.data);
+      const data = typeof e.message.data === "string" ? JSON.parse(e.message.data) : e.message.data;
       logger.debug("WebSocket: received", data);
       onEvent(data as SpiritEvent);
     } catch (err) {
       logger.error("WebSocket: failed to parse message", err);
     }
-  };
+  });
 
-  ws.onclose = () => {
-    logger.warn("WebSocket: disconnected, reconnecting in 5s...");
-    reconnectTimer = setTimeout(() => connectWebSocket(url, onEvent), 5000);
-  };
+  client.on("disconnected", () => {
+    logger.warn("WebSocket: disconnected");
+  });
 
-  ws.onerror = (err) => {
-    logger.error("WebSocket: error", err);
-  };
+  client.on("stopped", () => {
+    logger.info("WebSocket: stopped");
+  });
+
+  client.start().catch((err) => {
+    logger.error("WebSocket: failed to start", err);
+  });
 }
 
 export function disconnectWebSocket() {
-  clearTimeout(reconnectTimer);
-  if (ws) {
-    ws.close();
-    ws = null;
+  if (client) {
+    client.stop();
+    client = null;
   }
 }

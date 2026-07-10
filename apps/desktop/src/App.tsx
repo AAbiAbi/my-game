@@ -32,6 +32,7 @@ export default function App() {
   // Connect to Azure Web PubSub for real-time events
   useEffect(() => {
     const wsUrl = import.meta.env.VITE_PUBSUB_URL;
+    console.log("PUBSUB URL length:", wsUrl?.length, "starts with:", wsUrl?.substring(0, 30));
     if (!wsUrl) {
       logger.warn("No VITE_PUBSUB_URL set, skipping WebSocket connection");
       return;

@@ -155,3 +155,30 @@ Config file: `.project-spirit/preferences.json` (project root, gitignored)
 
 - [ ] Step 3: Azure Function HTTP trigger → send to Web PubSub
 - [ ] Step 4: Microsoft Graph webhook → Teams notifications → Function
+
+最适合你的分层方式
+
+个人项目的通用基础设施可以放在这 $150 subscription：
+
+Personal Azure
+├── Azure Function
+├── Web PubSub
+├── AI processing for personal data
+└── Gmail / GitHub / personal calendar integrations
+
+公司 Teams 部分先保持本地：
+
+Company Teams source
+↓
+Local filtering / classification
+↓
+Desktop pet
+
+除非你确认有公司认可的 Graph app registration、consent 和数据处理方式，否则不要把 Teams 原文传到个人 Azure。
+
+你当前的 Azure 登录已经是正确的个人项目环境。可以用下面两条再次确认：
+
+az account show -o table
+az account get-access-token --query tenant -o tsv
+
+接下来部署 Azure Function 和 Web PubSub都可以继续使用这个 subscription；Teams Graph 集成则应当作为单独的权限与合规问题处理。

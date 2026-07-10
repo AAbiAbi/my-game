@@ -7,6 +7,7 @@ export default defineConfig({
   plugins: [react()],
   define: {
     "import.meta.env.VITE_PROJECT_ROOT": JSON.stringify(path.resolve(__dirname)),
+    "import.meta.env.VITE_PUBSUB_URL": JSON.stringify(process.env.VITE_PUBSUB_URL || ""),
   },
   server: {
     port: 3000,
