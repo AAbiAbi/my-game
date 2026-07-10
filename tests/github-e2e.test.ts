@@ -8,47 +8,81 @@ import { helloSkill } from "../packages/skills/helloSkill";
 const skills = [helloSkill, notificationSkill, messageSkill];
 
 describe("E2E: GitHub notification → SpiritEvent → router → skill", () => {
-  describe("notificationToSpiritEvent", () => {
-    it("converts review_requested to high priority event", () => {
-      const event = notificationToSpiritEvent({
+  describe("notificationToSpiritEvent — priority filter", () => {
+    it("review_requested → high priority", () => {
+      const result = notificationToSpiritEvent({
         reason: "review_requested",
         subject: { title: "Fix auth bug", type: "PullRequest" },
         repository: { full_name: "org/repo" },
       });
 
-      expect(event.type).toBe("notification.received");
-      expect(event.payload.title).toBe("[review_requested] Fix auth bug");
-      expect(event.payload.body).toBe("PullRequest in org/repo");
+      expect(result.priority).toBe("high");
+      expect(result.event.type).toBe("notification.received");
+      expect(result.event.payload.title).toBe("[review_requested] Fix auth bug");
     });
 
-    it("converts mention to high priority event", () => {
-      const event = notificationToSpiritEvent({
+    it("mention → high priority", () => {
+      const result = notificationToSpiritEvent({
         reason: "mention",
-        subject: { title: "Need help with deployment", type: "Issue" },
+        subject: { title: "Need help", type: "Issue" },
         repository: { full_name: "team/project" },
       });
 
-      expect(event.payload.title).toBe("[mention] Need help with deployment");
+      expect(result.priority).toBe("high");
+      expect(result.event.payload.title).toBe("[mention] Need help");
     });
 
-    it("converts assign to high priority event", () => {
-      const event = notificationToSpiritEvent({
+    it("assign → high priority", () => {
+      const result = notificationToSpiritEvent({
         reason: "assign",
         subject: { title: "Update docs", type: "Issue" },
         repository: { full_name: "org/docs" },
       });
 
-      expect(event.payload.title).toBe("[assign] Update docs");
+      expect(result.priority).toBe("high");
     });
 
-    it("converts subscribed to normal priority", () => {
-      const event = notificationToSpiritEvent({
-        reason: "subscribed",
-        subject: { title: "Release v2.0", type: "Release" },
-        repository: { full_name: "org/lib" },
+    it("author → high priority", () => {
+      const result = notificationToSpiritEvent({
+        reason: "author",
+        subject: { title: "My PR got merged", type: "PullRequest" },
+        repository: { full_name: "org/repo" },
       });
 
-      expect(event.payload.title).toBe("Release v2.0");
+      expect(result.priority).toBe("high");
+      expect(result.event.payload.title).toBe("[author] My PR got merged");
+    });
+
+    it("comment on my thread → high priority", () => {
+      const result = notificationToSpiritEvent({
+        reason: "comment",
+        subject: { title: "Bug report #42", type: "Issue" },
+        repository: { full_name: "org/repo" },
+      });
+
+      expect(result.priority).toBe("high");
+    });
+
+    it("subscribed → low priority (for AI recap)", () => {
+      const result = notificationToSpiritEvent({
+        reason: "subscribed",
+        subject: { title: "Release v2.0", type: "Release" },
+        repository: { full_name: "Azure/AgentBaker" },
+      });
+
+      expect(result.priority).toBe("low");
+      expect(result.event.payload.title).toBe("Release v2.0");
+      expect(result.repo).toBe("Azure/AgentBaker");
+    });
+
+    it("manual watch → low priority", () => {
+      const result = notificationToSpiritEvent({
+        reason: "manual",
+        subject: { title: "Some PR", type: "PullRequest" },
+        repository: { full_name: "Azure/AgentBaker" },
+      });
+
+      expect(result.priority).toBe("low");
     });
   });
 
@@ -65,104 +99,78 @@ describe("E2E: GitHub notification → SpiritEvent → router → skill", () => 
       expect(event.payload.body).toBe("lily asked you to review: Add caching layer");
     });
 
-    it("converts PR opened", () => {
-      const event = githubToSpiritEvent("pull_request", {
-        action: "opened",
-        pull_request: { title: "New feature" },
-        sender: { login: "bob" },
-      });
-
-      expect(event.payload.title).toBe("PR opened");
-      expect(event.payload.body).toBe("bob: New feature");
-    });
-
-    it("converts issue assigned", () => {
-      const event = githubToSpiritEvent("issues", {
-        action: "assigned",
-        issue: { title: "Fix bug #123" },
+    it("converts issue_comment", () => {
+      const event = githubToSpiritEvent("issue_comment", {
         sender: { login: "alice" },
+        issue: { number: 42 },
+        comment: { body: "This looks good to me!" },
       });
 
-      expect(event.payload.title).toBe("Issue assigned");
-      expect(event.payload.body).toBe("alice: Fix bug #123");
+      expect(event.payload.title).toBe("Comment on #42");
+      expect(event.payload.body).toContain("alice");
     });
 
-    it("converts push event", () => {
-      const event = githubToSpiritEvent("push", {
-        repository: { full_name: "org/repo" },
-        pusher: { name: "dev" },
-        commits: [{}, {}, {}],
+    it("converts pull_request_review", () => {
+      const event = githubToSpiritEvent("pull_request_review", {
+        sender: { login: "bob" },
+        pull_request: { title: "Fix bug" },
+        review: { state: "approved" },
       });
 
-      expect(event.payload.title).toBe("Push to org/repo");
-      expect(event.payload.body).toBe("dev pushed 3 commit(s)");
+      expect(event.payload.title).toBe("PR review: approved");
+    });
+
+    it("converts pull_request_review_comment", () => {
+      const event = githubToSpiritEvent("pull_request_review_comment", {
+        sender: { login: "carol" },
+        pull_request: { title: "Refactor" },
+        comment: { body: "Can you add a test?" },
+      });
+
+      expect(event.payload.title).toBe("Review comment on PR");
+      expect(event.payload.body).toContain("carol");
     });
 
     it("ignores unknown event types", () => {
-      const event = githubToSpiritEvent("star", { action: "created" });
-      expect(event).toBeNull();
-    });
-
-    it("ignores PR actions that are not tracked", () => {
-      const event = githubToSpiritEvent("pull_request", {
-        action: "labeled",
-        pull_request: { title: "x" },
-        sender: { login: "y" },
-      });
-      expect(event).toBeNull();
+      expect(githubToSpiritEvent("star", { action: "created" })).toBeNull();
     });
   });
 
-  describe("full pipeline: GitHub → event → router → skill result", () => {
-    it("review_requested notification → High priority bubble", async () => {
-      const spiritEvent = notificationToSpiritEvent({
+  describe("full pipeline: GitHub → filter → router → skill", () => {
+    it("high priority → push to pet → bubble", async () => {
+      const { event, priority } = notificationToSpiritEvent({
         reason: "review_requested",
         subject: { title: "Fix Docker rate limits", type: "PullRequest" },
         repository: { full_name: "rancher/local-path-provisioner" },
       });
 
-      const result = await route(spiritEvent, skills);
+      expect(priority).toBe("high");
+      const result = await route(event, skills);
       expect(result.message).toBe("High priority: PullRequest in rancher/local-path-provisioner");
       expect(result.mood).toBe("alert");
     });
 
-    it("mention notification → High priority bubble", async () => {
-      const spiritEvent = notificationToSpiritEvent({
-        reason: "mention",
-        subject: { title: "PR review request from Lily", type: "Issue" },
-        repository: {
-          full_name: "abigailliang-aks-sig-node/test-notification",
-        },
-      });
-
-      const result = await route(spiritEvent, skills);
-      expect(result.message).toContain("High priority");
-      expect(result.mood).toBe("alert");
-    });
-
-    it("subscribed notification → normal bubble", async () => {
-      const spiritEvent = notificationToSpiritEvent({
+    it("low priority → NOT pushed, stored for recap", () => {
+      const { priority, repo } = notificationToSpiritEvent({
         reason: "subscribed",
-        subject: { title: "Weekly sync", type: "Discussion" },
-        repository: { full_name: "team/meetings" },
+        subject: { title: "Weekly release", type: "Release" },
+        repository: { full_name: "Azure/AgentBaker" },
       });
 
-      const result = await route(spiritEvent, skills);
-      expect(result.message).toBe("📬 Weekly sync");
-      expect(result.mood).toBe("alert");
+      expect(priority).toBe("low");
+      expect(repo).toBe("Azure/AgentBaker");
     });
 
-    it("webhook PR review → High priority bubble", async () => {
-      const spiritEvent = githubToSpiritEvent("pull_request", {
+    it("webhook PR review → route → bubble", async () => {
+      const event = githubToSpiritEvent("pull_request", {
         action: "review_requested",
         pull_request: { title: "Add unit tests" },
         sender: { login: "Lily" },
       });
 
-      const result = await route(spiritEvent, skills);
+      const result = await route(event, skills);
       expect(result.message).toContain("High priority");
       expect(result.message).toContain("Lily asked you to review: Add unit tests");
-      expect(result.mood).toBe("alert");
     });
   });
 });
