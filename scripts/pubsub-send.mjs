@@ -22,5 +22,5 @@ const payload = process.argv[3] ? JSON.parse(process.argv[3]) : undefined;
 const event = payload ? { type, payload } : { type };
 
 const client = new WebPubSubServiceClient(cs, "spirit");
-await client.sendToAll(JSON.stringify(event), { contentType: "application/json" });
+await client.sendToAll(event, { contentType: "application/json" });
 console.log(`✓ Sent via Web PubSub: ${type}`, payload ?? "");
