@@ -11,13 +11,12 @@ export default function HistoryPanel({ onClose }: HistoryPanelProps) {
 
   useEffect(() => {
     getHistory(30).then((data) => {
-      console.log("History loaded:", data.length, "events");
       setEvents(data);
     });
   }, []);
 
-  function formatTime(ts: number): string {
-    const d = new Date(ts);
+  function formatTime(isoStr: string): string {
+    const d = new Date(isoStr);
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
@@ -32,13 +31,14 @@ export default function HistoryPanel({ onClose }: HistoryPanelProps) {
       <div className="history-list">
         {events.length === 0 && <div className="history-empty">No events yet</div>}
         {events.map((e) => (
-          <div key={e.id} className={`history-item priority-${e.priority}`}>
-            <div className="history-time">{formatTime(e.ts)}</div>
+          <div key={e.id} className={`history-item relevance-${e.relevance}`}>
+            <div className="history-time">{formatTime(e.created_at)}</div>
             <div className="history-content">
               <div className="history-title">{e.title}</div>
               {e.body && <div className="history-body">{e.body}</div>}
+              {e.repo && <div className="history-repo">{e.repo}</div>}
             </div>
-            {e.priority === "high" && <span className="history-badge">⚡</span>}
+            {e.relevance === "direct" && <span className="history-badge">⚡</span>}
           </div>
         ))}
       </div>

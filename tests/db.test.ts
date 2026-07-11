@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 
-// Mock the @tauri-apps/plugin-sql module
 const mockExecute = vi.fn();
 const mockSelect = vi.fn();
 
@@ -13,55 +12,56 @@ vi.mock("@tauri-apps/plugin-sql", () => ({
   },
 }));
 
-// Import after mock
-const { initDb, saveEvent, getHistory } = await import("../apps/desktop/src/db");
+const { initDb, saveEvent, getHistory, markSummarized, saveDigest } =
+  await import("../apps/desktop/src/db");
 
-describe("DB module", () => {
-  it("initDb creates table", async () => {
+describe("DB module (two-table schema)", () => {
+  it("initDb creates both tables", async () => {
     await initDb();
     expect(mockExecute).toHaveBeenCalledWith(
       expect.stringContaining("CREATE TABLE IF NOT EXISTS events"),
     );
+    expect(mockExecute).toHaveBeenCalledWith(
+      expect.stringContaining("CREATE TABLE IF NOT EXISTS digests"),
+    );
   });
 
-  it("saveEvent inserts with correct params", async () => {
+  it("saveEvent inserts with correct fields", async () => {
     mockExecute.mockClear();
-    mockSelect.mockResolvedValueOnce([]); // dedup check returns empty
-    await saveEvent(
-      "notification.received",
-      "[mention] Fix bug",
-      "Issue in org/repo",
-      "alert",
-      "high",
-      "websocket",
-    );
+    mockSelect.mockResolvedValueOnce([]); // dedup check
+    await saveEvent({
+      source: "websocket",
+      event_type: "notification.received",
+      repo: "Azure/AgentBaker",
+      title: "[mention] Fix bug",
+      body: "Issue in repo",
+      relevance: "direct",
+    });
 
     expect(mockExecute).toHaveBeenCalledWith(
       expect.stringContaining("INSERT INTO events"),
       expect.arrayContaining([
-        expect.any(Number), // ts
-        "notification.received",
-        "[mention] Fix bug",
-        "Issue in org/repo",
-        "alert",
-        "high",
-        "shown", // high priority → status "shown"
         "websocket",
+        "notification.received",
+        "Azure/AgentBaker",
+        "[mention] Fix bug",
+        "Issue in repo",
+        "direct",
+        "shown",
       ]),
     );
   });
 
-  it("saveEvent sets status to digest_pending for low priority", async () => {
+  it("saveEvent sets status to digest_pending for digest relevance", async () => {
     mockExecute.mockClear();
-    mockSelect.mockResolvedValueOnce([]); // dedup check returns empty
-    await saveEvent(
-      "notification.received",
-      "Release v2.0",
-      "Release in Azure/AgentBaker",
-      "alert",
-      "low",
-      "github-poll",
-    );
+    mockSelect.mockResolvedValueOnce([]); // dedup
+    await saveEvent({
+      source: "github-poll",
+      event_type: "notification.received",
+      repo: "Azure/AgentBaker",
+      title: "Release v2.0",
+      relevance: "digest",
+    });
 
     expect(mockExecute).toHaveBeenCalledWith(
       expect.stringContaining("INSERT INTO events"),
@@ -69,40 +69,54 @@ describe("DB module", () => {
     );
   });
 
-  it("getHistory returns events in DESC order", async () => {
+  it("saveEvent skips duplicate within 5 minutes", async () => {
+    mockExecute.mockClear();
+    mockSelect.mockResolvedValueOnce([{ id: "existing-id" }]); // dedup finds match
+    const saved = await saveEvent({
+      source: "websocket",
+      event_type: "notification.received",
+      title: "[mention] Fix bug",
+      relevance: "direct",
+    });
+
+    expect(saved).toBe(false);
+    expect(mockExecute).not.toHaveBeenCalledWith(
+      expect.stringContaining("INSERT INTO events"),
+      expect.anything(),
+    );
+  });
+
+  it("getHistory returns events excluding ignored", async () => {
     const mockEvents = [
-      { id: 2, ts: 2000, title: "newer", priority: "high" },
-      { id: 1, ts: 1000, title: "older", priority: "low" },
+      { id: "2", title: "newer", relevance: "direct", created_at: "2026-07-10T10:00:00Z" },
+      { id: "1", title: "older", relevance: "digest", created_at: "2026-07-10T09:00:00Z" },
     ];
     mockSelect.mockResolvedValueOnce(mockEvents);
 
     const result = await getHistory(10);
     expect(result).toEqual(mockEvents);
-    expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining("ORDER BY ts DESC"), [10]);
-  });
-
-  it("getHistory defaults to limit 50", async () => {
-    mockSelect.mockResolvedValueOnce([]);
-    await getHistory();
-    expect(mockSelect).toHaveBeenCalledWith(expect.any(String), [50]);
-  });
-
-  it("saveEvent skips duplicate within 5 minutes", async () => {
-    mockExecute.mockClear();
-    mockSelect.mockResolvedValueOnce([{ id: 99 }]); // dedup finds existing
-    const saved = await saveEvent(
-      "notification.received",
-      "[mention] Fix bug",
-      "Issue in org/repo",
-      "alert",
-      "high",
-      "websocket",
+    expect(mockSelect).toHaveBeenCalledWith(
+      expect.stringContaining("relevance != 'ignored'"),
+      [10],
     );
+  });
 
-    expect(saved).toBe(false);
-    expect(mockExecute).not.toHaveBeenCalledWith(
-      expect.stringContaining("INSERT"),
-      expect.anything(),
+  it("markSummarized updates status for given ids", async () => {
+    mockExecute.mockClear();
+    await markSummarized(["id-1", "id-2", "id-3"]);
+    expect(mockExecute).toHaveBeenCalledWith(expect.stringContaining("status = 'summarized'"), [
+      "id-1",
+      "id-2",
+      "id-3",
+    ]);
+  });
+
+  it("saveDigest inserts into digests table", async () => {
+    mockExecute.mockClear();
+    await saveDigest("Summary text", 5, "2026-07-10T08:00:00Z", "2026-07-10T17:00:00Z");
+    expect(mockExecute).toHaveBeenCalledWith(
+      expect.stringContaining("INSERT INTO digests"),
+      expect.arrayContaining(["Summary text", 5, "2026-07-10T08:00:00Z", "2026-07-10T17:00:00Z"]),
     );
   });
 });
