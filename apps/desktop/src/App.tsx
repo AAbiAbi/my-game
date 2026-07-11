@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { route } from "../../../packages/core/src/router";
 import { logger, setLogLevel } from "../../../packages/core/src/logger";
 import {
@@ -160,14 +160,10 @@ export default function App() {
   async function openHistory() {
     setMenuOpen(false);
     setHistoryOpen(true);
-    const win = getCurrentWindow();
-    await win.setSize(new LogicalSize(280, 500));
   }
 
-  async function closeHistory() {
+  function closeHistory() {
     setHistoryOpen(false);
-    const win = getCurrentWindow();
-    await win.setSize(new LogicalSize(220, 220));
   }
 
   async function quit() {
