@@ -139,6 +139,7 @@ Config file: `.project-spirit/preferences.json` (project root, gitignored)
 
 - **v0.1.0** — Basic pet: click, drag, transparent window
 - **v0.2.0** — Context menu, sleep mode, preferences, event router, logger
+- **v0.3.0** — Azure Functions, WebSocket real-time events, GitHub notifications, SQLite history, priority filter
 
 ## Roadmap
 
@@ -148,8 +149,9 @@ Config file: `.project-spirit/preferences.json` (project root, gitignored)
 - [x] Desktop pet auto-negotiate on startup (replace .env.local)
 - [x] Notification priority filter (high → push, low → AI recap)
 - [x] Bubble queue with float-up animation (max 3 visible)
-- [ ] Message history panel (right-click → History)
-- [ ] Local memory persistence (`.project-spirit/memory.json`)
+- [x] Message history panel (right-click → History)
+- [x] SQLite local event store
+- [ ] Push all events to client (let local filter decide)
 - [ ] AI recap for low-priority notifications
 - [ ] Gmail / personal calendar integration
-- [ ] v0.3 release
+- [ ] v0.4 release
