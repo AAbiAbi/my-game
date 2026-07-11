@@ -133,7 +133,9 @@ app.timer("github-poll", {
         context.log(`  ⚡ [HIGH] ${result.event.payload.title}`);
         highCount++;
       } else {
-        context.log(`  📋 [LOW] ${result.event.payload.title} (${result.reason} in ${result.repo})`);
+        context.log(
+          `  📋 [LOW] ${result.event.payload.title} (${result.reason} in ${result.repo})`,
+        );
         lowCount++;
       }
     }
