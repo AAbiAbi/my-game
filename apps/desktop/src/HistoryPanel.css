@@ -88,6 +88,16 @@
   font-size: 10px;
 }
 
-.priority-high {
+.history-repo {
+  font-size: 9px;
+  color: #aaa;
+  margin-top: 2px;
+}
+
+.relevance-direct {
   background: #fff8f0;
+}
+
+.relevance-digest {
+  background: #f0f8ff;
 }

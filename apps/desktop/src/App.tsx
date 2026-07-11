@@ -11,7 +11,7 @@ import { skills } from "./skills";
 import { useDrag } from "./hooks/useDrag";
 import { loadPreferences } from "./loadPreferences";
 import { connectWebSocket, disconnectWebSocket } from "./websocket";
-import { initDb, saveEvent, getDigestPending, markDigested, saveRecap } from "./db";
+import { initDb, saveEvent, getDigestPending, markSummarized, saveDigest } from "./db";
 import ContextMenu from "./ContextMenu";
 import HistoryPanel from "./HistoryPanel";
 import "./App.css";
@@ -82,16 +82,17 @@ export default function App() {
         const body = event.type === "notification.received" ? (event.payload?.body ?? "") : "";
         const priorityRaw = (event.payload as Record<string, unknown>)?.priority;
         const priority: "high" | "low" = priorityRaw === "low" ? "low" : "high";
+        const repo = (event.payload as Record<string, unknown>)?.repo as string | undefined;
 
         // Save ALL events to local SQLite
-        await saveEvent(
-          event.type,
-          title || result.message,
+        await saveEvent({
+          source: "websocket",
+          event_type: event.type,
+          repo,
+          title: title || result.message,
           body,
-          result.mood ?? null,
-          priority,
-          "websocket",
-        );
+          relevance: priority === "high" ? "direct" : "digest",
+        });
 
         // Local filter: only show bubble for high priority
         if (priority === "high") {
@@ -194,18 +195,20 @@ export default function App() {
           events: pending.map((e) => ({
             title: e.title,
             body: e.body,
-            repo: e.source,
+            repo: e.repo,
           })),
         }),
       });
 
       const { summary, eventCount } = await res.json();
 
-      // Mark events as digested
-      await markDigested(pending.map((e) => e.id));
+      // Mark events as summarized
+      await markSummarized(pending.map((e) => e.id));
 
-      // Save recap to DB
-      await saveRecap(summary, eventCount);
+      // Save digest to DB
+      const periodStart = pending[0].created_at;
+      const periodEnd = pending[pending.length - 1].created_at;
+      await saveDigest(summary, eventCount, periodStart, periodEnd);
 
       // Show summary as bubble
       addBubble(`📊 Recap (${eventCount} events): ${summary.substring(0, 150)}...`);
