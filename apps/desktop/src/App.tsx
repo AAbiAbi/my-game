@@ -11,7 +11,7 @@ import { skills } from "./skills";
 import { useDrag } from "./hooks/useDrag";
 import { loadPreferences } from "./loadPreferences";
 import { connectWebSocket, disconnectWebSocket } from "./websocket";
-import { initDb, saveEvent } from "./db";
+import { initDb, saveEvent, getDigestPending, markDigested, saveRecap } from "./db";
 import ContextMenu from "./ContextMenu";
 import HistoryPanel from "./HistoryPanel";
 import "./App.css";
@@ -173,6 +173,49 @@ export default function App() {
     setHistoryOpen(false);
   }
 
+  const RECAP_URL =
+    import.meta.env.VITE_RECAP_URL || "https://spirit-functions.azurewebsites.net/api/recap";
+
+  async function handleRecap() {
+    setMenuOpen(false);
+    addBubble("🤖 Generating recap...");
+
+    const pending = await getDigestPending();
+    if (pending.length === 0) {
+      addBubble("No new events to recap.");
+      return;
+    }
+
+    try {
+      const res = await fetch(RECAP_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          events: pending.map((e) => ({
+            title: e.title,
+            body: e.body,
+            repo: e.source,
+          })),
+        }),
+      });
+
+      const { summary, eventCount } = await res.json();
+
+      // Mark events as digested
+      await markDigested(pending.map((e) => e.id));
+
+      // Save recap to DB
+      await saveRecap(summary, eventCount);
+
+      // Show summary as bubble
+      addBubble(`📊 Recap (${eventCount} events): ${summary.substring(0, 150)}...`);
+      logger.info(`AI Recap: ${eventCount} events summarized`);
+    } catch (err) {
+      logger.error("Recap failed:", err);
+      addBubble("❌ Recap failed. Try again later.");
+    }
+  }
+
   async function quit() {
     logger.info("Quitting app");
     await getCurrentWindow().close();
@@ -189,7 +232,13 @@ export default function App() {
       </div>
       {historyOpen && <HistoryPanel onClose={closeHistory} />}
       {menuOpen && (
-        <ContextMenu onSleep={sleep} onWake={wakeUp} onHistory={openHistory} onQuit={quit} />
+        <ContextMenu
+          onSleep={sleep}
+          onWake={wakeUp}
+          onHistory={openHistory}
+          onRecap={handleRecap}
+          onQuit={quit}
+        />
       )}
       <button
         className={`pet pet-${mood}`}
