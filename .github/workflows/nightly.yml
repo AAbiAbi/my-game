@@ -1,0 +1,22 @@
+name: Nightly Full Test
+
+on:
+  schedule:
+    - cron: "37 8 * * *" # daily at 8:37am UTC
+  workflow_dispatch: # allow manual trigger
+
+jobs:
+  full-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Full test suite
+        run: npm test
