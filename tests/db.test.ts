@@ -26,6 +26,7 @@ describe("DB module", () => {
 
   it("saveEvent inserts with correct params", async () => {
     mockExecute.mockClear();
+    mockSelect.mockResolvedValueOnce([]); // dedup check returns empty
     await saveEvent(
       "notification.received",
       "[mention] Fix bug",
@@ -52,6 +53,7 @@ describe("DB module", () => {
 
   it("saveEvent sets status to digest_pending for low priority", async () => {
     mockExecute.mockClear();
+    mockSelect.mockResolvedValueOnce([]); // dedup check returns empty
     await saveEvent(
       "notification.received",
       "Release v2.0",
@@ -83,5 +85,24 @@ describe("DB module", () => {
     mockSelect.mockResolvedValueOnce([]);
     await getHistory();
     expect(mockSelect).toHaveBeenCalledWith(expect.any(String), [50]);
+  });
+
+  it("saveEvent skips duplicate within 5 minutes", async () => {
+    mockExecute.mockClear();
+    mockSelect.mockResolvedValueOnce([{ id: 99 }]); // dedup finds existing
+    const saved = await saveEvent(
+      "notification.received",
+      "[mention] Fix bug",
+      "Issue in org/repo",
+      "alert",
+      "high",
+      "websocket",
+    );
+
+    expect(saved).toBe(false);
+    expect(mockExecute).not.toHaveBeenCalledWith(
+      expect.stringContaining("INSERT"),
+      expect.anything(),
+    );
   });
 });

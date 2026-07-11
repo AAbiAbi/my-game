@@ -53,18 +53,31 @@ export async function saveEvent(
   mood: string | null,
   priority: "high" | "low",
   source: string,
-): Promise<void> {
+): Promise<boolean> {
   const d = await getDb();
-  if (!d) return;
+  if (!d) return false;
   try {
+    // Dedup: skip if same title exists within last 5 minutes
+    const fiveMinAgo = Date.now() - 5 * 60 * 1000;
+    const existing = await d.select<{ id: number }[]>(
+      "SELECT id FROM events WHERE title = $1 AND ts > $2 LIMIT 1",
+      [title, fiveMinAgo],
+    );
+    if (existing.length > 0) {
+      logger.debug(`DB: skipped duplicate event: ${title}`);
+      return false;
+    }
+
     const status = priority === "high" ? "shown" : "digest_pending";
     await d.execute(
       "INSERT INTO events (ts, type, title, body, mood, priority, status, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
       [Date.now(), type, title, body, mood, priority, status, source],
     );
     logger.debug(`DB: saved event [${priority}] ${title}`);
+    return true;
   } catch (err) {
     logger.error("DB: failed to save event", err);
+    return false;
   }
 }
 
