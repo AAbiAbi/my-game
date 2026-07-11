@@ -88,7 +88,29 @@ export async function markAsRead(id: number): Promise<void> {
 export async function getDigestPending(): Promise<EventRecord[]> {
   const d = await getDb();
   if (!d) return [];
-  return await d.select<EventRecord[]>(
-    "SELECT * FROM events WHERE status = 'digest_pending' ORDER BY ts ASC",
+  try {
+    return await d.select<EventRecord[]>(
+      "SELECT * FROM events WHERE status = 'digest_pending' ORDER BY ts ASC",
+    );
+  } catch (err) {
+    logger.error("DB: failed to get digest pending", err);
+    return [];
+  }
+}
+
+export async function markDigested(ids: number[]): Promise<void> {
+  const d = await getDb();
+  if (!d || ids.length === 0) return;
+  const placeholders = ids.map((_, i) => `$${i + 1}`).join(",");
+  await d.execute(`UPDATE events SET status = 'digested' WHERE id IN (${placeholders})`, ids);
+}
+
+export async function saveRecap(summary: string, eventCount: number): Promise<void> {
+  const d = await getDb();
+  if (!d) return;
+  await d.execute(
+    "INSERT INTO events (ts, type, title, body, mood, priority, status, source) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+    [Date.now(), "recap", "AI Recap", summary, null, "low", "read", "ai"],
   );
+  logger.info(`DB: saved recap (${eventCount} events summarized)`);
 }

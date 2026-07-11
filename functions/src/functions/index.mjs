@@ -1,5 +1,6 @@
 import { app } from "@azure/functions";
 import { WebPubSubServiceClient } from "@azure/web-pubsub";
+import { AzureOpenAI } from "openai";
 import crypto from "crypto";
 import { notificationToSpiritEvent, githubToSpiritEvent } from "../github-events.mjs";
 
@@ -153,5 +154,76 @@ app.timer("github-poll", {
         "X-GitHub-Api-Version": "2022-11-28",
       },
     });
+  },
+});
+
+// --- recap: AI summarizes low-priority events ---
+app.http("recap", {
+  methods: ["POST", "OPTIONS"],
+  authLevel: "anonymous",
+  route: "recap",
+  handler: async (request) => {
+    if (request.method === "OPTIONS") {
+      return { status: 204, headers: corsHeaders };
+    }
+
+    const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
+    const apiKey = process.env.AZURE_OPENAI_KEY;
+    const deployment = process.env.AZURE_OPENAI_DEPLOYMENT;
+
+    if (!endpoint || !apiKey || !deployment) {
+      return {
+        status: 500,
+        body: "Azure OpenAI not configured",
+        headers: corsHeaders,
+      };
+    }
+
+    const body = await request.json();
+    const events = body.events || [];
+
+    if (events.length === 0) {
+      return {
+        jsonBody: { summary: "No events to recap." },
+        headers: corsHeaders,
+      };
+    }
+
+    // Format events for AI
+    const eventList = events
+      .map((e, i) => `${i + 1}. [${e.repo || "unknown"}] ${e.title} — ${e.body || ""}`)
+      .join("\n");
+
+    const client = new AzureOpenAI({
+      endpoint,
+      apiKey,
+      apiVersion: "2024-10-21",
+      deployment,
+    });
+
+    const result = await client.chat.completions.create({
+      model: deployment,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a concise assistant that summarizes GitHub repository activity. " +
+            "Group by repo, highlight important items (releases, breaking changes, security). " +
+            "Keep it under 200 words. Use bullet points.",
+        },
+        {
+          role: "user",
+          content: `Summarize these ${events.length} GitHub notifications:\n\n${eventList}`,
+        },
+      ],
+      max_completion_tokens: 2000,
+    });
+
+    const summary = result.choices?.[0]?.message?.content || "Could not generate summary.";
+
+    return {
+      jsonBody: { summary, eventCount: events.length },
+      headers: corsHeaders,
+    };
   },
 });
