@@ -116,21 +116,30 @@ app.timer("github-poll", {
       const result = notificationToSpiritEvent(n);
       if (!result) continue;
 
+      // Push ALL events to client with priority — client decides what to show
+      const enrichedEvent = {
+        ...result.event,
+        payload: {
+          ...result.event.payload,
+          priority: result.priority,
+          reason: result.reason,
+          repo: result.repo,
+        },
+      };
+
+      await pubsub.sendToAll(enrichedEvent, { contentType: "application/json" });
+
       if (result.priority === "high") {
-        await pubsub.sendToAll(result.event, { contentType: "application/json" });
         context.log(`  ⚡ [HIGH] ${result.event.payload.title}`);
         highCount++;
       } else {
-        context.log(
-          `  📋 [LOW] ${result.event.payload.title} (${result.reason} in ${result.repo})`,
-        );
+        context.log(`  📋 [LOW] ${result.event.payload.title} (${result.reason} in ${result.repo})`);
         lowCount++;
-        // TODO: store in memory.json for AI recap
       }
     }
 
     if (highCount > 0 || lowCount > 0) {
-      context.log(`Summary: ${highCount} high priority pushed, ${lowCount} low priority stored`);
+      context.log(`Summary: ${highCount} high, ${lowCount} low — all pushed to client`);
     }
 
     // Mark as read

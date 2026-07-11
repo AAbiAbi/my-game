@@ -80,19 +80,26 @@ export default function App() {
         const result = await route(event, skills);
         const title = event.type === "notification.received" ? (event.payload?.title ?? "") : "";
         const body = event.type === "notification.received" ? (event.payload?.body ?? "") : "";
+        const priorityRaw = (event.payload as Record<string, unknown>)?.priority;
+        const priority: "high" | "low" = priorityRaw === "low" ? "low" : "high";
 
-        // Save to DB
+        // Save ALL events to local SQLite
         await saveEvent(
           event.type,
           title || result.message,
           body,
           result.mood ?? null,
-          "high",
+          priority,
           "websocket",
         );
 
-        setMood(result.mood ?? "idle");
-        addBubble(result.message);
+        // Local filter: only show bubble for high priority
+        if (priority === "high") {
+          setMood(result.mood ?? "idle");
+          addBubble(result.message);
+        } else {
+          logger.info(`[LOW] Stored for digest: ${title}`);
+        }
       });
     }
 
