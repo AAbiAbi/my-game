@@ -1,5 +1,9 @@
 # Abby AI Companion — Desktop Pet
 
+<p align="center">
+  <img src="docs/concept.png" alt="PawMate Design Concept" width="800">
+</p>
+
 ## Architecture
 
 ```mermaid
