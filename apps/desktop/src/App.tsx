@@ -254,7 +254,7 @@ export default function App() {
         onMouseUp={handleMouseUp}
         onContextMenu={handleContextMenu}
       >
-        {mood === "sleeping" ? "😴" : "🐱"}
+        {mood === "sleeping" ? "😴" : mood === "happy" ? "😸" : mood === "alert" ? "🙀" : "🐱"}
       </button>
     </div>
   );
