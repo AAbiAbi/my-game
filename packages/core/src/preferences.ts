@@ -1,8 +1,11 @@
-export type PetMood = "idle" | "happy" | "sleeping" | "alert";
+import type { PetState } from "./petState";
+
+/** @deprecated Use PetState instead */
+export type PetMood = PetState;
 
 export type Preferences = {
   petName: string;
-  defaultMood: PetMood;
+  defaultMood: PetState;
   bubbleDurationMs: number;
 };
 

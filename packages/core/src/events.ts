@@ -1,4 +1,6 @@
 // packages/core/src/events.ts
+import type { PetState } from "./petState";
+
 export type SpiritEvent =
   | { type: "pet.clicked"; payload?: undefined }
   | { type: "notification.received"; payload?: { title: string; body: string } }
@@ -6,5 +8,5 @@ export type SpiritEvent =
 
 export type SkillResult = {
   message: string;
-  mood?: "idle" | "happy" | "alert";
+  mood?: PetState;
 };

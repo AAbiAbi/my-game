@@ -2,13 +2,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { route } from "../../../packages/core/src/router";
 import { logger, setLogLevel } from "../../../packages/core/src/logger";
-import {
-  defaultPreferences,
-  type Preferences,
-  type PetMood,
-} from "../../../packages/core/src/preferences";
+import { defaultPreferences, type Preferences } from "../../../packages/core/src/preferences";
 import { skills } from "./skills";
 import { useDrag } from "./hooks/useDrag";
+import { usePetStateMachine } from "./hooks/usePetStateMachine";
 import { loadPreferences } from "./loadPreferences";
 import { connectWebSocket, disconnectWebSocket } from "./websocket";
 import { initDb, saveEvent, getDigestPending, markSummarized, saveDigest } from "./db";
@@ -47,7 +44,14 @@ export default function App() {
   const [prefs, setPrefs] = useState<Preferences>(defaultPreferences);
   const [queue, setQueue] = useState<BubbleMessage[]>([]);
   const [visible, setVisible] = useState<BubbleMessage[]>([]);
-  const [mood, setMood] = useState<PetMood>(prefs.defaultMood);
+  const {
+    state: mood,
+    transition,
+    sleep: petSleep,
+    wake: petWake,
+  } = usePetStateMachine(prefs.defaultMood, prefs.bubbleDurationMs);
+  const moodRef = useRef(mood);
+  moodRef.current = mood;
   const [menuOpen, setMenuOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const rightClicked = useRef(false);
@@ -76,7 +80,6 @@ export default function App() {
       }
 
       connectWebSocket(wsUrl, async (event) => {
-        if (mood === "sleeping") return;
         const result = await route(event, skills);
         const title = event.type === "notification.received" ? (event.payload?.title ?? "") : "";
         const body = event.type === "notification.received" ? (event.payload?.body ?? "") : "";
@@ -84,7 +87,7 @@ export default function App() {
         const priority: "high" | "low" = priorityRaw === "low" ? "low" : "high";
         const repo = (event.payload as Record<string, unknown>)?.repo as string | undefined;
 
-        // Save ALL events to local SQLite
+        // Save ALL events to local SQLite (even when sleeping)
         await saveEvent({
           source: "websocket",
           event_type: event.type,
@@ -94,9 +97,12 @@ export default function App() {
           relevance: priority === "high" ? "direct" : "digest",
         });
 
+        // Sleeping: record but don't show bubbles
+        if (moodRef.current === "sleeping") return;
+
         // Local filter: only show bubble for high priority
         if (priority === "high") {
-          setMood(result.mood ?? "idle");
+          transition(result.mood ?? "alert");
           addBubble(result.message);
         } else {
           logger.info(`[LOW] Stored for digest: ${title}`);
@@ -138,10 +144,8 @@ export default function App() {
     }
     const result = await route({ type: "pet.clicked" }, skills);
 
-    setMood(result.mood ?? "happy");
+    transition(result.mood ?? "happy");
     addBubble(result.message);
-
-    setTimeout(() => setMood("idle"), prefs.bubbleDurationMs);
   }
 
   function handleContextMenu(e: React.MouseEvent) {
@@ -153,14 +157,14 @@ export default function App() {
 
   function sleep() {
     logger.info("Pet going to sleep");
-    setMood("sleeping");
+    petSleep();
     setMenuOpen(false);
     addBubble("Going to sleep...");
   }
 
   function wakeUp() {
     logger.info("Pet waking up");
-    setMood("idle");
+    petWake();
     setMenuOpen(false);
     addBubble("I'm awake!");
   }
