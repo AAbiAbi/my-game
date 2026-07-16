@@ -44,12 +44,7 @@ export default function App() {
   const [prefs, setPrefs] = useState<Preferences>(defaultPreferences);
   const [queue, setQueue] = useState<BubbleMessage[]>([]);
   const [visible, setVisible] = useState<BubbleMessage[]>([]);
-  const {
-    state: mood,
-    transition,
-    sleep: petSleep,
-    wake: petWake,
-  } = usePetStateMachine(prefs.defaultMood, prefs.bubbleDurationMs);
+  const { state: mood, send } = usePetStateMachine(prefs.defaultMood, prefs.bubbleDurationMs);
   const moodRef = useRef(mood);
   moodRef.current = mood;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -102,7 +97,7 @@ export default function App() {
 
         // Local filter: only show bubble for high priority
         if (priority === "high") {
-          transition(result.mood ?? "alert");
+          send({ type: "IMPORTANT_NOTIFICATION" });
           addBubble(result.message);
         } else {
           logger.info(`[LOW] Stored for digest: ${title}`);
@@ -144,7 +139,7 @@ export default function App() {
     }
     const result = await route({ type: "pet.clicked" }, skills);
 
-    transition(result.mood ?? "happy");
+    send({ type: "USER_CLICK" });
     addBubble(result.message);
   }
 
@@ -157,14 +152,14 @@ export default function App() {
 
   function sleep() {
     logger.info("Pet going to sleep");
-    petSleep();
+    send({ type: "SLEEP" });
     setMenuOpen(false);
     addBubble("Going to sleep...");
   }
 
   function wakeUp() {
     logger.info("Pet waking up");
-    petWake();
+    send({ type: "WAKE_UP" });
     setMenuOpen(false);
     addBubble("I'm awake!");
   }

@@ -1,177 +1,165 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { petTransition, type PetState, type PetEvent } from "../packages/core/src/petState";
 
-/**
- * Unit tests for the pet state machine transition rules.
- *
- * We test the pure logic by importing the hook's transition table
- * without React — simulating setState(prev => ...) manually.
- */
-
-// Replicate the transition logic from usePetStateMachine
-// so we can test it without React / renderHook
-type PetState = "idle" | "happy" | "alert" | "sleeping";
-
-function applyTransition(prev: PetState, to: PetState): PetState {
-  if (prev === "sleeping" && to !== "idle") return prev;
-  return to;
-}
-
-function shouldAutoDecay(to: PetState): boolean {
-  return to === "happy" || to === "alert";
-}
-
-describe("Pet State Machine — transition rules", () => {
-  describe("from idle", () => {
-    it("idle → happy", () => {
-      expect(applyTransition("idle", "happy")).toBe("happy");
-    });
-
-    it("idle → alert", () => {
-      expect(applyTransition("idle", "alert")).toBe("alert");
-    });
-
-    it("idle → sleeping", () => {
-      expect(applyTransition("idle", "sleeping")).toBe("sleeping");
-    });
+describe("petTransition — from idle", () => {
+  it("USER_CLICK → happy", () => {
+    expect(petTransition("idle", { type: "USER_CLICK" })).toBe("happy");
   });
 
-  describe("from sleeping (blocked)", () => {
-    it("sleeping blocks happy", () => {
-      expect(applyTransition("sleeping", "happy")).toBe("sleeping");
-    });
-
-    it("sleeping blocks alert", () => {
-      expect(applyTransition("sleeping", "alert")).toBe("sleeping");
-    });
-
-    it("sleeping blocks sleeping (no-op)", () => {
-      expect(applyTransition("sleeping", "sleeping")).toBe("sleeping");
-    });
-
-    it("sleeping allows idle (wake up)", () => {
-      expect(applyTransition("sleeping", "idle")).toBe("idle");
-    });
+  it("POSITIVE_RESULT → happy", () => {
+    expect(petTransition("idle", { type: "POSITIVE_RESULT" })).toBe("happy");
   });
 
-  describe("from happy/alert", () => {
-    it("happy → alert (override)", () => {
-      expect(applyTransition("happy", "alert")).toBe("alert");
-    });
-
-    it("alert → happy (override)", () => {
-      expect(applyTransition("alert", "happy")).toBe("happy");
-    });
-
-    it("happy → idle", () => {
-      expect(applyTransition("happy", "idle")).toBe("idle");
-    });
-
-    it("alert → idle", () => {
-      expect(applyTransition("alert", "idle")).toBe("idle");
-    });
+  it("IMPORTANT_NOTIFICATION → alert", () => {
+    expect(petTransition("idle", { type: "IMPORTANT_NOTIFICATION" })).toBe("alert");
   });
 
-  describe("auto-decay", () => {
-    it("happy triggers auto-decay", () => {
-      expect(shouldAutoDecay("happy")).toBe(true);
-    });
+  it("SLEEP → sleeping", () => {
+    expect(petTransition("idle", { type: "SLEEP" })).toBe("sleeping");
+  });
 
-    it("alert triggers auto-decay", () => {
-      expect(shouldAutoDecay("alert")).toBe(true);
-    });
+  it("TIMEOUT → null (invalid)", () => {
+    expect(petTransition("idle", { type: "TIMEOUT" })).toBeNull();
+  });
 
-    it("idle does NOT auto-decay", () => {
-      expect(shouldAutoDecay("idle")).toBe(false);
-    });
-
-    it("sleeping does NOT auto-decay", () => {
-      expect(shouldAutoDecay("sleeping")).toBe(false);
-    });
+  it("WAKE_UP → null (invalid)", () => {
+    expect(petTransition("idle", { type: "WAKE_UP" })).toBeNull();
   });
 });
 
-describe("Pet State Machine — timeout integration", () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
+describe("petTransition — from happy", () => {
+  it("TIMEOUT → idle", () => {
+    expect(petTransition("happy", { type: "TIMEOUT" })).toBe("idle");
+  });
 
-  it("happy decays to idle after timeout", () => {
-    const TIMEOUT = 2000;
-    let state: PetState = "idle";
+  it("SLEEP → sleeping", () => {
+    expect(petTransition("happy", { type: "SLEEP" })).toBe("sleeping");
+  });
 
-    // Simulate transition to happy
-    state = applyTransition(state, "happy");
-    expect(state).toBe("happy");
+  it("IMPORTANT_NOTIFICATION → alert", () => {
+    expect(petTransition("happy", { type: "IMPORTANT_NOTIFICATION" })).toBe("alert");
+  });
 
-    // Simulate the timeout callback
-    let decayed = false;
-    if (shouldAutoDecay(state)) {
-      setTimeout(() => {
-        decayed = true;
-      }, TIMEOUT);
+  it("USER_CLICK → null (already happy)", () => {
+    expect(petTransition("happy", { type: "USER_CLICK" })).toBeNull();
+  });
+});
+
+describe("petTransition — from alert", () => {
+  it("TIMEOUT → idle", () => {
+    expect(petTransition("alert", { type: "TIMEOUT" })).toBe("idle");
+  });
+
+  it("SLEEP → sleeping", () => {
+    expect(petTransition("alert", { type: "SLEEP" })).toBe("sleeping");
+  });
+
+  it("USER_CLICK → null (blocked)", () => {
+    expect(petTransition("alert", { type: "USER_CLICK" })).toBeNull();
+  });
+
+  it("IMPORTANT_NOTIFICATION → null (already alert)", () => {
+    expect(petTransition("alert", { type: "IMPORTANT_NOTIFICATION" })).toBeNull();
+  });
+});
+
+describe("petTransition — from sleeping", () => {
+  it("WAKE_UP → idle", () => {
+    expect(petTransition("sleeping", { type: "WAKE_UP" })).toBe("idle");
+  });
+
+  it("USER_CLICK → null (blocked)", () => {
+    expect(petTransition("sleeping", { type: "USER_CLICK" })).toBeNull();
+  });
+
+  it("IMPORTANT_NOTIFICATION → null (blocked)", () => {
+    expect(petTransition("sleeping", { type: "IMPORTANT_NOTIFICATION" })).toBeNull();
+  });
+
+  it("SLEEP → null (already sleeping)", () => {
+    expect(petTransition("sleeping", { type: "SLEEP" })).toBeNull();
+  });
+
+  it("TIMEOUT → null (no-op)", () => {
+    expect(petTransition("sleeping", { type: "TIMEOUT" })).toBeNull();
+  });
+});
+
+describe("petTransition — full scenario sequences", () => {
+  function run(events: PetEvent[], initial: PetState = "idle"): PetState {
+    let state = initial;
+    for (const e of events) {
+      state = petTransition(state, e) ?? state;
     }
+    return state;
+  }
 
-    vi.advanceTimersByTime(TIMEOUT - 1);
-    expect(decayed).toBe(false);
-
-    vi.advanceTimersByTime(1);
-    expect(decayed).toBe(true);
-  });
-
-  it("sleeping blocks transition even when timer fires", () => {
-    // If somehow a timer fires while sleeping, the transition should be blocked
-    let state: PetState = "sleeping";
-    state = applyTransition(state, "happy");
-    expect(state).toBe("sleeping"); // still sleeping
-  });
-});
-
-describe("Pet State Machine — full scenario sequences", () => {
-  it("click → happy → auto-idle → notification → alert → auto-idle", () => {
-    let state: PetState = "idle";
-
-    // Click: idle → happy
-    state = applyTransition(state, "happy");
-    expect(state).toBe("happy");
-
-    // Auto-decay: happy → idle
-    state = applyTransition(state, "idle");
-    expect(state).toBe("idle");
-
-    // Notification: idle → alert
-    state = applyTransition(state, "alert");
-    expect(state).toBe("alert");
-
-    // Auto-decay: alert → idle
-    state = applyTransition(state, "idle");
-    expect(state).toBe("idle");
+  it("click → happy → timeout → idle → notification → alert → timeout → idle", () => {
+    const result = run([
+      { type: "USER_CLICK" }, // idle → happy
+      { type: "TIMEOUT" }, // happy → idle
+      { type: "IMPORTANT_NOTIFICATION" }, // idle → alert
+      { type: "TIMEOUT" }, // alert → idle
+    ]);
+    expect(result).toBe("idle");
   });
 
   it("sleep → notifications blocked → wake → notifications work", () => {
-    let state: PetState = "idle";
-
-    // Sleep
-    state = applyTransition(state, "sleeping");
-    expect(state).toBe("sleeping");
-
-    // Notifications blocked while sleeping
-    state = applyTransition(state, "alert");
-    expect(state).toBe("sleeping");
-    state = applyTransition(state, "happy");
-    expect(state).toBe("sleeping");
-
-    // Wake up
-    state = applyTransition(state, "idle");
-    expect(state).toBe("idle");
-
-    // Notifications work again
-    state = applyTransition(state, "alert");
-    expect(state).toBe("alert");
+    const result = run([
+      { type: "SLEEP" }, // idle → sleeping
+      { type: "IMPORTANT_NOTIFICATION" }, // blocked
+      { type: "USER_CLICK" }, // blocked
+      { type: "WAKE_UP" }, // sleeping → idle
+      { type: "IMPORTANT_NOTIFICATION" }, // idle → alert
+    ]);
+    expect(result).toBe("alert");
   });
 
-  it("rapid transitions: new alert overrides existing happy", () => {
+  it("happy + IMPORTANT_NOTIFICATION overrides to alert", () => {
+    const result = run([
+      { type: "USER_CLICK" }, // idle → happy
+      { type: "IMPORTANT_NOTIFICATION" }, // happy → alert
+    ]);
+    expect(result).toBe("alert");
+  });
+
+  it("alert + SLEEP → sleeping immediately", () => {
+    const result = run([
+      { type: "IMPORTANT_NOTIFICATION" }, // idle → alert
+      { type: "SLEEP" }, // alert → sleeping
+    ]);
+    expect(result).toBe("sleeping");
+  });
+});
+
+describe("petTransition — auto-decay timing", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("happy auto-decays after timeout duration", () => {
+    const TIMEOUT = 2000;
     let state: PetState = "idle";
-    state = applyTransition(state, "happy");
-    state = applyTransition(state, "alert"); // override
-    expect(state).toBe("alert");
+    state = petTransition(state, { type: "USER_CLICK" })!;
+    expect(state).toBe("happy");
+
+    // Simulate what usePetStateMachine does: schedule TIMEOUT event
+    const timer = setTimeout(() => {
+      state = petTransition(state, { type: "TIMEOUT" }) ?? state;
+    }, TIMEOUT);
+
+    vi.advanceTimersByTime(TIMEOUT - 1);
+    expect(state).toBe("happy");
+
+    vi.advanceTimersByTime(1);
+    expect(state).toBe("idle");
+
+    clearTimeout(timer);
+  });
+
+  it("sleeping ignores scheduled TIMEOUT", () => {
+    const state: PetState = "sleeping";
+    const next = petTransition(state, { type: "TIMEOUT" });
+    expect(next).toBeNull();
+    expect(state).toBe("sleeping");
   });
 });
