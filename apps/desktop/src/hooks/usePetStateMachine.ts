@@ -1,13 +1,21 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { PetState } from "../../../../packages/core/src/petState";
+import {
+  type PetState,
+  type PetEvent,
+  petTransition,
+} from "../../../../packages/core/src/petState";
 
 /**
- * Centralized pet state machine.
+ * Event-driven pet state machine hook.
  *
- * Rules:
- *  - sleeping → ignores happy/alert; only wake() exits
- *  - happy/alert → auto-reset to idle after timeoutMs
- *  - idle → accepts any transition
+ * Transition table (see petTransition):
+ *   idle + USER_CLICK/POSITIVE_RESULT → happy
+ *   idle + IMPORTANT_NOTIFICATION     → alert
+ *   happy/alert + TIMEOUT             → idle
+ *   idle/happy/alert + SLEEP          → sleeping
+ *   sleeping + WAKE_UP                → idle
+ *
+ * happy/alert auto-fire TIMEOUT after `timeoutMs`.
  */
 export function usePetStateMachine(initialState: PetState, timeoutMs: number) {
   const [state, setState] = useState<PetState>(initialState);
@@ -16,32 +24,28 @@ export function usePetStateMachine(initialState: PetState, timeoutMs: number) {
   // Cleanup on unmount
   useEffect(() => () => clearTimeout(timerRef.current), []);
 
-  const transition = useCallback(
-    (to: PetState) => {
+  const send = useCallback(
+    (event: PetEvent) => {
       clearTimeout(timerRef.current);
       setState((prev) => {
-        // sleeping blocks everything except explicit wake (idle)
-        if (prev === "sleeping" && to !== "idle") return prev;
+        const next = petTransition(prev, event);
+        if (next === null) return prev; // invalid transition — no change
 
-        // happy/alert auto-decay back to idle
-        if (to === "happy" || to === "alert") {
-          timerRef.current = window.setTimeout(() => setState("idle"), timeoutMs);
+        // happy/alert auto-decay: schedule TIMEOUT
+        if (next === "happy" || next === "alert") {
+          timerRef.current = window.setTimeout(() => {
+            setState((cur) => {
+              const decayed = petTransition(cur, { type: "TIMEOUT" });
+              return decayed ?? cur;
+            });
+          }, timeoutMs);
         }
-        return to;
+
+        return next;
       });
     },
     [timeoutMs],
   );
 
-  const sleep = useCallback(() => {
-    clearTimeout(timerRef.current);
-    setState("sleeping");
-  }, []);
-
-  const wake = useCallback(() => {
-    clearTimeout(timerRef.current);
-    setState("idle");
-  }, []);
-
-  return { state, transition, sleep, wake } as const;
+  return { state, send } as const;
 }
